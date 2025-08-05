@@ -7,7 +7,6 @@
 
 from datetime import datetime
 import json
-import random
 import os
 import pyaudio
 import queue
@@ -72,10 +71,34 @@ class ColoredPrinter(printers.CaptionPrinter):
             self.console.print(text, style=syle) # Print the styled text without adding a new line
 
     def show_idle(self, text=None):
-        spinner_symbol = random.choice(['+', 'o'])
-        idle_msg = spinner_symbol
+        if not hasattr(self, '_spinner_frame'):
+            self._spinner_frame = 0
+            self._spinner_last_update = 0
+        
+        # Different spinner styles
+        spinners = {
+            'dots': ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
+            'bar': ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█', '▉', '▊', '▋', '▌', '▍', '▎'],
+            'circle': ['◐', '◓', '◑', '◒'],
+            'pulse': ['●', '○', '○', '○'],
+            'classic': ['|', '/', '-', '\\']
+        }
+        
+        spinner_chars = spinners.get('circle', spinners['classic'])
+        
+        # Update animation frame based on time (smoother than random)
+        current_time = time.time()
+        if current_time - self._spinner_last_update > 0.1:  # Update every 100ms
+            self._spinner_frame = (self._spinner_frame + 1) % len(spinner_chars)
+            self._spinner_last_update = current_time
+        
+        spinner_symbol = spinner_chars[self._spinner_frame]
+        
         if text:
-            idle_msg = text
+            idle_msg = f"{spinner_symbol} {text}"
+        else:
+            idle_msg = spinner_symbol
+            
         self.print(idle_msg, partial=True)
 
 

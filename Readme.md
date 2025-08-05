@@ -121,6 +121,18 @@ We use the phrase ```tell me a 100 word story about cats``` to trigger a LLM res
 | Time to first token (seconds) | ~0.16 sec | ~0.28 sec |
 | Time to first speech fragment (seconds) | ~0.7 sec  | ~1.2 sec |
 
+
+
+| model | metric | Mac M2 | Rasp |
+| -- | -- | -- | -- |
+| LFM2-350M-Q4_K_M.gguf | Time to first token (seconds) | ~0.09 sec |  |
+| LFM2-350M-Q4_K_M.gguf | Time to first speech fragment (seconds) | ~0.17 sec  | xx sec |
+| -- | -- | -- | -- |
+| LFM2-1.2B-Q4_K_M.gguf | Time to first token (seconds) | ~0.14 sec |  |
+| LFM2-1.2B-Q4_K_M.gguf | Time to first speech fragment (seconds) | ~0.26 sec  | xx sec |
+
+
+
 ## Example on Raspberry Pi 5
 
 Running offline with above configuration (Moonshine ASR tiny, Gemma3:1b, Piper voice).

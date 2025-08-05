@@ -80,7 +80,7 @@ def keyboard_listener(voice_agent, stop_event):
         fcntl.fcntl(fd, fcntl.F_SETFL, old_flags)
 
 def main():
-    """Main function to run the Ollama to Piper streamer."""
+    """Main function to run the LLM to Audio output streamer."""
     
     parser = voice_agent_utils.get_cli_argument_parser()
     args = parser.parse_args()
@@ -88,7 +88,7 @@ def main():
     va = VoiceAgent()
 
     va.init_LLmToAudioOutput(
-        ollama_model_name=args.ollama_model_name,
+        llm_server_url=args.llm_server_url,
         system_prompt=args.system_prompt,
         start_message=args.start_message,
         tts_engine=args.tts_engine,

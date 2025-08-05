@@ -6,7 +6,7 @@ onnxruntime
 piper-phonemize-cross
 emoji
 nltk
-ollama
+openai
 pyaudio
 psutil
 rich

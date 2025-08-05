@@ -140,7 +140,7 @@ class VoiceAgentApp:
                  color_theme="blue",
                  
                  # Voice agent configuration
-                 ollama_model_name="gemma3:1b",
+                 llm_server_url=voice_agent_utils.DEFAULT_LLM_SERVER_URL,
                  tts_engine="piper",
                  asr_model_name="moonshine_onnx_tiny",
                  tts_model_path=None,
@@ -155,7 +155,7 @@ class VoiceAgentApp:
                  verbose=False):
                  
         # Voice agent config
-        self.ollama_model_name = ollama_model_name
+        self.llm_server_url = llm_server_url
         self.tts_engine = tts_engine
         self.asr_model_name = asr_model_name
         self.tts_model_path = tts_model_path
@@ -216,7 +216,7 @@ class VoiceAgentApp:
         
         # Initialize the agent components
         self.voice_agent.init_LLmToAudioOutput(
-            ollama_model_name=self.ollama_model_name,
+            llm_server_url=self.llm_server_url,
             system_prompt=self.system_prompt,
             start_message=self.start_message,
             tts_engine=self.tts_engine,
@@ -525,7 +525,7 @@ if __name__ == "__main__":
         color_theme=args.color_theme,
         
         # Voice agent configuration
-        ollama_model_name=args.ollama_model_name,
+        llm_server_url=args.llm_server_url,
         tts_engine=args.tts_engine,
         asr_model_name=args.asr_model_name,
         tts_model_path=args.tts_model_path,

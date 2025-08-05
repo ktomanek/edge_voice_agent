@@ -1,5 +1,9 @@
 import argparse
 
+DEFAULT_LLM_SERVER_URL = "http://localhost:8080/v1"
+DEFAULT_LLM_SERVER_MODEL = "dummy"
+DEFAULT_LLM_SERVER_API_KEY = "dummy"
+
 DEFAULT_SYSTEM_PROMPT = """You are an assistant that runs on an edge device. Respond with a single, short sentence only."""
 DEFAULT_START_MESSAGE = "Hello, how can I help?"
 DEFAULT_LANGUAGE = "en"
@@ -9,7 +13,7 @@ DEFAULT_EXIT_COMMAND = 'please exit'
 
 def get_cli_argument_parser():
     parser = argparse.ArgumentParser(description="On Device Voice Agen")
-    parser.add_argument("--ollama_model_name", default="gemma3:1b", help="Ollama model to use (default: llama3)")
+    parser.add_argument("--llm_server_url", default=DEFAULT_LLM_SERVER_URL, help="Url where LLM is served using OpenAI-compatible API format.")
     parser.add_argument("--tts_engine", choices=['piper', 'kokoro'], default="piper", help="which tts engine to use; piper is much faster than kokoro.")
     parser.add_argument("--asr_model_name", default="moonshine_onnx_tiny", help="which asr model to run.")
     parser.add_argument("--language", default=DEFAULT_LANGUAGE, help="language to use")

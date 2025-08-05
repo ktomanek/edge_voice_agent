@@ -1,26 +1,29 @@
 # Fully offline running voice agent.
 #
-# Uses Ollama for on-devive LLMs. Supports several on-device runnable tts-engines and asr models.
+# Uses OpenAI's client library to connect to LLM. For now, we assume the LLM is self-hosted via LLama.cpp (see script to
+# start server). Currently, we do not support cloud-hosted LLMs (API key/model name ignored so far, but should be an easy change).
+# Supports several on-device runnable tts-engines and asr models.
 # Defaults are set for smallest models so that it can run on edge devices like Raspberry Pi 5.
 
-
-from captioning_lib import captioning_utils
-from captioning_lib import printers
+from datetime import datetime
+import json
 import random
+import os
 import pyaudio
 import queue
-import json
-import ollama
+import signal
 import sounddevice as sd
+import sys
+import threading
+import time
+
+from openai import OpenAI
+from captioning_lib import captioning_utils
+from captioning_lib import printers
+from tts_lib import tts_engines
+
 import nltk
 from nltk.tokenize import sent_tokenize
-import time
-import threading
-import queue
-import signal
-import sys
-from tts_lib import tts_engines
-import time 
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
@@ -79,10 +82,22 @@ class ColoredPrinter(printers.CaptionPrinter):
 class LLmToAudio:
     """Generate LLM output based on prompt and stream into TTS output."""
 
+    def show_llm_model_info(self):
+        models = self.llm_client.models.list()
+        
+        # For now we are assuming that the LLM is self-hosted via LLama.cpp, so there really is only
+        # one model. Double check and show info about the model.
+        if not models.data:
+            raise ValueError("No models found at LLM server.")
+        elif len(models.data) != 1:
+            raise ValueError("More than one model found at LLM server.")
+
+        model = models.data[0]        
+        print(f"LLM: {model.id}, via: {model.owned_by}")
 
 
     def __init__(self, 
-                 ollama_model_name="gemma3:1b", 
+                 llm_server_url=voice_agent_utils.DEFAULT_LLM_SERVER_URL,
                  system_prompt=voice_agent_utils.DEFAULT_SYSTEM_PROMPT,
                  start_message=voice_agent_utils.DEFAULT_START_MESSAGE,
                  tts_engine='piper',
@@ -93,32 +108,27 @@ class LLmToAudio:
                  verbose=False,
                  printer=None
                  ):
-        """Initialize the streamer with Piper and Ollama models."""
+        """Initialize the streamer with Piper and LLM models."""
         self.verbose = verbose
-
-        ## Init LLM
+        
+        ## Init LLM and prompts
+        self.llm_server_url = llm_server_url
+        self.llm_client = OpenAI(base_url=llm_server_url, api_key=voice_agent_utils.DEFAULT_LLM_SERVER_API_KEY)
         self.system_prompt = system_prompt
         self.start_message = start_message
         self.messages = [
             {'role': 'system', 'content': self.system_prompt},
         ]
+        self.show_llm_model_info()
 
-        self.ollama_model_name = ollama_model_name
-        print(f"Using Ollama model: {self.ollama_model_name}")
-        self.ollama_options={
-            "temperature": 0.3,  # lower temperature for speed
-            "num_predict": -1,  # unlimited
-            #"num_ctx": 1024
-        }
-
-        # warm up model
+        # Warm up LLM
         t1 = time.time()
-        ollama.chat(
-            model=self.ollama_model_name,
+        _ = self.llm_client.chat.completions.create(
+            model="mymodel",  # This can be any string
             messages=[{"role": "user", "content": "hi"}],
             stream=False
-        )        
-        self._info(f"Ollama model warmed up in {time.time()-t1} secs.")
+        )
+        self._info(f"LLM warmed up in {time.time()-t1} secs.")
 
         # Init TTS
         self.max_words_to_speak_start = max_words_to_speak_start
@@ -263,7 +273,7 @@ class LLmToAudio:
             return self.max_words_to_speak
 
     def _process_text_chunk(self, text_chunk):
-        """Process a chunk of text from Ollama.
+        """Process a chunk of text from LLM.
         
         Decide when to put in the speak queue based on sentence end detection on max chunk size."""
         if self.stop_event.is_set():
@@ -388,7 +398,7 @@ class LLmToAudio:
     
 
     def process_prompt(self, user_prompt):
-        """Process a prompt through Ollama and stream to Piper."""
+        """Process a prompt through LLM and stream to Piper."""
 
         self.messages.append({'role': 'user', 'content': user_prompt})
 
@@ -397,7 +407,7 @@ class LLmToAudio:
             self._info(f">> context length: characters: {len(json.dumps(self.messages))}")
 
             pretty_json = json.dumps(self.messages, indent=2)
-            self._info(f">> Sending prompt to {self.ollama_model_name}: {pretty_json}")
+            self._info(f">> Sending prompt to {self.llm_server_url}: {pretty_json}")
 
 
         # reset
@@ -408,15 +418,13 @@ class LLmToAudio:
         self.time_llm_gen_started = time.time()
         self.first_chunk_emitted = False
 
-        # get and stream Ollama response to prompt
-        response = ollama.chat(
-            model=self.ollama_model_name,
+        llm_response_stream = self.llm_client.chat.completions.create(
+            model=voice_agent_utils.DEFAULT_LLM_SERVER_MODEL,
             messages=self.messages,
-            stream=True,
-            options=self.ollama_options
+            stream=True
         )
         text_chunks = []
-        for chunk in response:
+        for chunk in llm_response_stream:
             if not self.first_chunk_emitted:
                 self.first_chunk_emitted = True
                 self.time_to_first_token = time.time() - self.time_llm_gen_started
@@ -424,10 +432,9 @@ class LLmToAudio:
 
             if self.stop_event.is_set():
                 break
-                
-            if chunk and 'message' in chunk and 'content' in chunk['message']:
-                text_chunk = chunk['message']['content']
 
+            if chunk.choices[0].delta.content:
+                text_chunk = chunk.choices[0].delta.content
                 self.assistant_printer.show_idle()
 
                 # remove asterisks and other formatting info from the text
@@ -683,7 +690,8 @@ class VoiceAgent():
             else:
                 if self.stop_event_set():
                     break
-                self.output_handler.process_prompt(user_input_transcribed)     
+                self.output_handler.process_prompt(user_input_transcribed)
+                time.sleep(0.3)    
 
     def trigger_stop_events(self):
         self.input_handler.stop_event.set()

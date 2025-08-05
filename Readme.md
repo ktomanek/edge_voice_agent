@@ -113,24 +113,19 @@ In both cases, measurements where taking with the CPU governor  set to ```perfor
 
 We set ```--max_words_to_speak_start``` to 5 for these experiments.
 
-We use the phrase ```tell me a 100 word story about cats``` to trigger a LLM response in ```voice_agent_cli.py```.
-
-| metric | Mac M2 | Rasp |
-| -- | -- | -- |
-| LLM inference speed (tokens/seconds) | ~63 tok/sec | ~13 tok/sec |
-| Time to first token (seconds) | ~0.16 sec | ~0.28 sec |
-| Time to first speech fragment (seconds) | ~0.7 sec  | ~1.2 sec |
-
-
 
 | model | metric | Mac M2 | Rasp |
 | -- | -- | -- | -- |
-| LFM2-350M-Q4_K_M.gguf | Time to first token (seconds) | ~0.09 sec |  |
-| LFM2-350M-Q4_K_M.gguf | Time to first speech fragment (seconds) | ~0.17 sec  | xx sec |
+| LFM2-350M-Q4_K_M.gguf | Time to first token (seconds) | ~0.09 sec |  ~0.30sec |
+| LFM2-350M-Q4_K_M.gguf | Time to first speech fragment (seconds) | ~0.17 sec  | ~0.45 sec |
 | -- | -- | -- | -- |
-| LFM2-1.2B-Q4_K_M.gguf | Time to first token (seconds) | ~0.14 sec |  |
-| LFM2-1.2B-Q4_K_M.gguf | Time to first speech fragment (seconds) | ~0.26 sec  | xx sec |
+| LFM2-350M-Q4_K_M.gguf | Time to first token (seconds) | ~0.12 sec |  ~0.7-1.3sec |
+| LFM2-350M-Q4_K_M.gguf | Time to first speech fragment (seconds) | ~0.20 sec  | ~1.0-1.3 sec |
+| -- | -- | -- | -- |
+| LFM2-700M-Q4_K_M.gguf | Time to first token (seconds) | ~0.14 sec | ~0.9-1.5 sec |
+| LFM2-700M-Q4_K_M.gguf | Time to first speech fragment (seconds) | ~0.26 sec  | ~1.3-1.7 sec |
 
+The variance in inference speed on the Raspberry Pi is quite remarkable by the 700M and 1.2B models. Conversation quality is getting quite good with the 1.2B model. The 350M param model is very fast to respond on  a Raspberry Pi, however, conversation quality is significantly lacking compared to the 1.2B model.
 
 
 ## Example on Raspberry Pi 5

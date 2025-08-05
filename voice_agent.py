@@ -295,6 +295,11 @@ class LLmToAudio:
         else:
             return self.max_words_to_speak
 
+    def _has_natural_break_point(self, text):
+        """Check if text has natural break points like punctuation marks followed by space."""
+        break_patterns = [', ', '; ', ': ', '! ', '? ', '. ', ' - ', ' – ', ' — ']
+        return any(pattern in text for pattern in break_patterns)
+
     def _process_text_chunk(self, text_chunk):
         """Process a chunk of text from LLM.
         
@@ -328,12 +333,17 @@ class LLmToAudio:
                                 self._info(f"\n>> Time to first speech fragment (organic): {self.time_to_first_speech_fragment:.2f} seconds")
                             self.first_speech_fragment_finalized = True
 
-                elif len(self.text_buffer_words) > self._get_max_buffer_words_before_speaking():
+                elif (len(self.text_buffer_words) > self._get_max_buffer_words_before_speaking() or 
+                      (self._has_natural_break_point(self.text_buffer) and len(self.text_buffer_words) >= 1)):
                     # Look for natural break points
                     break_points = [
                         self.text_buffer.rfind(', '),
                         self.text_buffer.rfind(' - '),
                         self.text_buffer.rfind(': '),
+                        self.text_buffer.rfind('; '),
+                        self.text_buffer.rfind('. '),
+                        self.text_buffer.rfind('! '),
+                        self.text_buffer.rfind('? '),
                         self.text_buffer.rfind(' ')
                     ]
                     
@@ -346,7 +356,7 @@ class LLmToAudio:
                     self._info(f"Queued fragment: {fragment}")
                     if not self.first_speech_fragment_finalized:
                         self.time_to_first_speech_fragment = time.time() - self.time_llm_gen_started 
-                        self._info(f"\n>> Time to first speech fragment (forced): {self.time_to_first_speech_fragment:.2f} seconds")
+                        self._info(f"\n>> Time to first speech fragment (punctuation): {self.time_to_first_speech_fragment:.2f} seconds")
 
                     self.first_speech_fragment_finalized = True
 

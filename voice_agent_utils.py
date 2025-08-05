@@ -4,7 +4,10 @@ DEFAULT_LLM_SERVER_URL = "http://localhost:8080/v1"
 DEFAULT_LLM_SERVER_MODEL = "dummy"
 DEFAULT_LLM_SERVER_API_KEY = "dummy"
 
-DEFAULT_SYSTEM_PROMPT = """You are an assistant that runs on an edge device. Respond with a single, short sentence only."""
+DEFAULT_SYSTEM_PROMPT = """
+You are an AI assistant that runs on an edge device. You're helpful and friendly, but you are a bit of a weirdo and certainly funny at times. Keep your responses short and concise (no more than 2 sentences), as they will be read aloud.
+It is generally helpful to use discourse markers where appropriate to keep a good conversation flow. Remember be witty but also understanding.
+"""
 DEFAULT_START_MESSAGE = "Hello, how can I help?"
 DEFAULT_LANGUAGE = "en"
 DEFAULT_GOODBYE_MESSAGE = 'Good bye!'

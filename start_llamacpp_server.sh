@@ -22,9 +22,14 @@ if [ ! -f "$MODEL" ]; then
 fi
 
 # start server
+# note: settings mostly optimized for Raspberry Pi 5
 nice -n 10 \
   llama-server -m $MODEL \
-  -c 4096 --threads 2 --batch-size 1 \
+  --cache-type-k f16 --cache-type-v f16 \
+  -c 1024 \
+  --threads 2 \
+  --batch-size 16 \
+  --ubatch-size 8
   --port 8080
 
 

@@ -51,7 +51,7 @@ class ColoredPrinter(printers.CaptionPrinter):
     def stop(self):
         self.console.rule()
 
-    def print(self, transcript, duration=None, partial=False):
+    def print(self, transcript, duration=None, partial=False, is_recent_chunk_mode=False, recent_chunk_duration=None):
         """Update the caption display with the latest transcription"""
         # Move to the beginning of the line and clear it
         sys.stdout.write("\r\033[K")  

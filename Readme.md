@@ -15,47 +15,28 @@
 
 * switched to LLama.cpp to support newer models
 * set new default model to [LiquidAI's LFM2](https://www.liquid.ai/blog/liquid-foundation-models-v2-our-second-series-of-generative-ai-models) due to increased speed
+* easier installation, support of kittenTTS, new piper version
 
 ## Installation
 
 ### Core functionality
 
+#### Dependencies
+
 * install dependencies
    * ```pip install -r requirements.txt```
-   * CLI should work on all environments
-   * the UI is based on tkinter (customtkinter), which should run seamlessly on Linux; on MacOs it might be necessary to download python from https://www.python.org/downloads/macos and use this python version instead of one installed by homebrew (ie, create your python environment with the newly installed version of python, which sould be found under eg ```/usr/local/bin/python3.12```)
 
-* download these two repos and install with ```pip install -e .``` each (also install their dependencies)
-   * https://github.com/ktomanek/captioning (install all ASR models you want to run, see instructions there)
-   * https://github.com/ktomanek/edge_tts_comparison
+#### Download assets
 
-* download sentence splitter: 
-   * ```python -c "import nltk; nltk.download('punkt_tab')``` or
-   * ```python -c "import ssl; import nltk; ssl._create_default_https_context = ssl._create_unverified_context; nltk.download('punkt_tab')"```
+* sentence splitter: ```python -m spacy download en_core_web_sm```
+* download models (check scripts if you want other models):
+   * piper tts models: ```sh download_piper_models.sh```
+   * kokoro tts models: ```sh download_kokoro_models.sh```
+   * llm models: ```sh download_llm.sh```
 
-* potentially install ```sudo apt install python3-tk```
+##### Llama.cpp
 
-
-### Models
-
-#### ASR models
-
-* moonshine:
-```pip install useful-moonshine-onnx@git+https://git@github.com/usefulsensors/moonshine.git#subdirectory=moonshine-onnx```
-
-* optionally install other models:
-
-* ```pip install "nemo_toolkit[asr]"```
-* ```pip install faster whisper```
-
-##### TTS models
-
-* if using Kokoro, copy model files here
-* for Piper, Lessac voice included here, copy other voice models if wanted
-
-#### Llama.cpp
-
-* install [LLama.cpp](https://github.com/ggml-org/llama.cpp) locally
+* install [LLama.cpp](https://github.com/ggml-org/llama.cpp) locally and make sure that at least `llama-server` is added to the path
 * then retrieve GGUF files of the model you want to use
    * recommended quantization level: Q4_K_M - typically good balance of quality and size
    * models can be downloaded eg from HuggingFace
@@ -63,6 +44,18 @@
 * start a local LLama.cpp server for the chosen and downloaded model:
    * ```sh start_llama_server.sh mymodel.gguf``
    * depending on your environment, modify settings in the llama.cpp server (eg context length, threads, etc)
+
+
+### Optional
+
+#### Nvidia ASR
+* if you want to use Nvidia's ASR models (nemo): ```pip install "nemo_toolkit[asr]"```
+
+#### For UI
+* CLI should work on all environments
+* the UI is based on tkinter (customtkinter), which should run seamlessly on Linux; on MacOs it might be necessary to download python from https://www.python.org/downloads/macos and use this python version instead of one installed by homebrew (ie, create your python environment with the newly installed version of python, which sould be found under eg ```/usr/local/bin/python3.12```)
+* for running the TKInter UI you might need to install a tk-enabled python version: ```sudo apt install python3-tk```
+
 
 ## CLI command line arguments
 

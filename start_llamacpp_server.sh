@@ -2,11 +2,9 @@
 #
 # Starts llama.cpp server with the provided model file.
 #
-# Download gguf model first.
-# Eg:
-# wget https://huggingface.co/LiquidAI/LFM2-350M-GGUF/resolve/main/LFM2-350M-Q4_K_M.gguf
+# Download gguf model first (eg with download_llm.sh).
 # Then start server:
-# ./start_llama_server.sh LFM2-350M-Q4_K_M.gguf
+# ./start_llama_server.sh models/llms/LFM2-350M-Q4_K_M.gguf
 
 
 # set model file
@@ -21,15 +19,22 @@ if [ ! -f "$MODEL" ]; then
   exit 1
 fi
 
+# find llama-server binary path
+LLAMA_SERVER=$(which llama-server 2>/dev/null)
+if [ -z "$LLAMA_SERVER" ]; then
+  echo "llama-server not found in PATH. Please install llama.cpp or add it to PATH."
+  exit 1
+fi
+
 # start server
 # note: settings mostly optimized for Raspberry Pi 5
 nice -n 10 \
-  llama-server -m $MODEL \
+  "$LLAMA_SERVER" -m $MODEL \
   --cache-type-k f16 --cache-type-v f16 \
   -c 1024 \
   --threads 2 \
   --batch-size 16 \
-  --ubatch-size 8
+  --ubatch-size 8 \
   --port 8080
 
 

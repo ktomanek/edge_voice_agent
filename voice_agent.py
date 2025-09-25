@@ -463,7 +463,7 @@ class LLmToAudio:
             if self.stop_event.is_set():
                 break
 
-            if chunk.choices[0].delta.content:
+            if chunk.choices and chunk.choices[0].delta.content:
                 text_chunk = chunk.choices[0].delta.content
                 self.assistant_printer.show_idle()
 

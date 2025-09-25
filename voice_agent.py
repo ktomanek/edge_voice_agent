@@ -7,7 +7,6 @@
 
 from datetime import datetime
 import json
-import os
 import pyaudio
 import queue
 import signal
@@ -21,13 +20,11 @@ from captioning_lib import captioning_utils
 from captioning_lib import printers
 from tts_lib import tts_engines
 
-import nltk
-from nltk.tokenize import sent_tokenize
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
-import re
+t1 = time.time()
+import spacy
+nlp = spacy.load("en_core_web_sm")  # Load this once, ideally in __init__
+print(f"Loading spacy took: {time.time()-t1}")
+
 import emoji
 import voice_agent_utils
 
@@ -316,7 +313,7 @@ class LLmToAudio:
             
             # find complete sentences
             try:
-                sentences = sent_tokenize(self.text_buffer)
+                sentences = [sent.text.strip() for sent in nlp(self.text_buffer).sents]
                 if len(sentences) > 1:
                     complete_sentences = sentences[:-1]
                     

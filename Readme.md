@@ -19,30 +19,40 @@
 
 ## Installation
 
-### Core functionality
+### Quick Start (Recommended)
+
+1. **Install llama.cpp**: Follow [installation instructions](https://github.com/ggml-org/llama.cpp) and ensure `llama-server` is in your PATH
+2. **One-step setup**: `python setup.py`
+3. **Try the fitness coach demo**: `./start_demo.py` (using tiny ASR/LLM and TTS models to run edge devices like a Raspberry Pi for example)
+4. **Or start manually**: 
+   ```bash
+   # Terminal 1: Start LLM server
+   llama-server -m models/llms/LFM2-350M-Q4_K_M.gguf --port 8080
+   
+   # Terminal 2: Start voice agent
+   python voice_agent_cli.py
+   ```
+
+### Manual Installation (Alternative)
 
 #### Dependencies
-
-* install dependencies
-   * ```pip install -r requirements.txt```
+* ```pip install -r requirements.txt```
 
 #### Download assets
-
 * sentence splitter: ```python -m spacy download en_core_web_sm```
 * download models (check scripts if you want other models):
    * piper tts models: ```sh download_piper_models.sh```
    * kokoro tts models: ```sh download_kokoro_models.sh```
    * llm models: ```sh download_llm.sh```
 
-##### Llama.cpp
-
+#### Llama.cpp
 * install [LLama.cpp](https://github.com/ggml-org/llama.cpp) locally and make sure that at least `llama-server` is added to the path
 * then retrieve GGUF files of the model you want to use
    * recommended quantization level: Q4_K_M - typically good balance of quality and size
    * models can be downloaded eg from HuggingFace
       * eg for LiquidAI's LFM2 variants: [here](https://huggingface.co/collections/LiquidAI/lfm2-686d721927015b2ad73eaa38)
 * start a local LLama.cpp server for the chosen and downloaded model:
-   * ```sh start_llama_server.sh mymodel.gguf``
+   * ```sh start_llama_server.sh mymodel.gguf```
    * depending on your environment, modify settings in the llama.cpp server (eg context length, threads, etc)
 
 

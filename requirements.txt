@@ -4,17 +4,11 @@ git+https://git@github.com/usefulsensors/moonshine.git#subdirectory=moonshine-on
 soundfile
 librosa
 numpy
-kokoro-onnx
-onnxruntime
-piper-phonemize-cross
 emoji
-nltk
 openai
 pyaudio
 psutil
 rich
 silero_vad
-soundfile
 sounddevice
-customtkinter
 spacy

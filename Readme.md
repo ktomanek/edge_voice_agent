@@ -22,7 +22,7 @@
 ### Quick Start (Recommended)
 
 1. **Install llama.cpp**: Follow [installation instructions](https://github.com/ggml-org/llama.cpp) and ensure `llama-server` is in your PATH and that `-DLLAMA_BUILD_SERVER=ON` is in your cmake flags
-2. **Create python environment**: eg `python -m venv venv`
+2. **Create python environment**: eg `python -m venv venv` and `source venv/bin/activate`
 2. **One-step setup**: `python setup.py`
 3. **Try the fitness coach demo**: `./start_demo.py` (using tiny ASR/LLM and TTS models to run edge devices like a Raspberry Pi for example)
 4. **Or start manually**: 

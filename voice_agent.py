@@ -7,6 +7,7 @@
 
 from datetime import datetime
 import json
+import logging
 import queue
 import signal
 import sounddevice as sd
@@ -625,8 +626,12 @@ class AudioToText:
                     return ""
                 
                 try:
-                    data = self.input_audio_stream.read(captioning_utils.AUDIO_FRAMES_TO_CAPTURE)
-                    self.audio_queue.put(data, timeout=0.1)
+                    data, overflowed = self.input_audio_stream.read(captioning_utils.AUDIO_FRAMES_TO_CAPTURE)
+                    if overflowed:
+                        logging.warning("Audio input overflow detected - some frames were dropped")
+                    # Convert to bytes for queue
+                    audio_bytes = data.tobytes()
+                    self.audio_queue.put(audio_bytes, timeout=0.1)
                 except Exception as e:
                     # If we're stopping, just ignore errors
                     if self.stop_event.is_set():

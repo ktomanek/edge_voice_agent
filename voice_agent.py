@@ -531,9 +531,12 @@ class AudioToText:
         
     def start(self):
 
-        # Initialize audio stream
-        self.input_audio_stream = captioning_utils.get_audio_stream(
-            input_device_index=self.device_index
+        # Initialize audio stream with callback mode for better performance
+        # Use low latency for responsive conversation on voice agent
+        self.input_audio_stream = captioning_utils.get_audio_stream_callback(
+            audio_queue=self.audio_queue,
+            input_device_index=self.device_index,
+            target_latency=0.5  # Balance between responsiveness and stability on RPi
         )
 
         # Set stop flag and transcriber thread
@@ -614,30 +617,26 @@ class AudioToText:
             print(text)
 
     def get_speech_input(self):
+        """Get speech input from user until end of utterance is detected.
+
+        With callback mode, audio is captured in background thread automatically.
+        This method just monitors for end-of-utterance.
+        """
         self.caption_printer.start()
 
         try:
-            self.input_audio_stream.start()
+            # Start stream for listening (callback will feed queue)
+            if not self.input_audio_stream.active:
+                self.input_audio_stream.start()
             self._info(f">>> START input audio stream active: {self.input_audio_stream.active}")
 
             while True:
                 # Check for stop signal
                 if self.stop_event.is_set():
                     return ""
-                
-                try:
-                    data, overflowed = self.input_audio_stream.read(captioning_utils.AUDIO_FRAMES_TO_CAPTURE)
-                    if overflowed:
-                        logging.warning("Audio input overflow detected - some frames were dropped")
-                    # Convert to bytes for queue
-                    audio_bytes = data.tobytes()
-                    self.audio_queue.put(audio_bytes, timeout=0.1)
-                except Exception as e:
-                    # If we're stopping, just ignore errors
-                    if self.stop_event.is_set():
-                        return ""
-                    # Otherwise, re-raise
-                    raise
+
+                # Small sleep to avoid busy-waiting (callback feeds queue in background)
+                time.sleep(0.01)
 
                 all_transcribed = ''
                 if not self.transcription_handler.is_speech_recording:
@@ -655,7 +654,7 @@ class AudioToText:
                             self.transcription_handler.reset()
                             break
         finally:
-            # Always try to stop the stream, ignoring errors
+            # Stop stream while LLM is responding (prevent echo)
             if self.input_audio_stream.active:
                 self.input_audio_stream.stop()
 

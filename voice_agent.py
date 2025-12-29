@@ -7,7 +7,6 @@
 
 from datetime import datetime
 import json
-import pyaudio
 import queue
 import signal
 import sounddevice as sd
@@ -507,8 +506,6 @@ class AudioToText:
             self.caption_printer = printer
 
         # For audio input
-        self.audio = None
-
         self.input_device = captioning_utils.find_default_input_device()
         self._info(f"Using default audio input device: {self.input_device}")
         self.device_index = self.input_device['index']
@@ -534,9 +531,7 @@ class AudioToText:
     def start(self):
 
         # Initialize audio stream
-        self.audio = pyaudio.PyAudio()
         self.input_audio_stream = captioning_utils.get_audio_stream(
-            self.audio, 
             input_device_index=self.device_index
         )
 
@@ -558,11 +553,9 @@ class AudioToText:
 
         # Stop audio stream
         if self.input_audio_stream:
-            if self.input_audio_stream.is_active():
-                self.input_audio_stream.stop_stream()
+            if self.input_audio_stream.active:
+                self.input_audio_stream.stop()
             self.input_audio_stream.close()
-            self.audio.terminate()
-            self.audio = None
         
         # Set stop flag
         self.stop_event.set()
@@ -587,30 +580,30 @@ class AudioToText:
 
     def mute(self):
         """Temporarily stop the audio input stream without destroying it"""
-        if self.input_audio_stream and self.input_audio_stream.is_active():
-            self.input_audio_stream.stop_stream()
+        if self.input_audio_stream and self.input_audio_stream.active:
+            self.input_audio_stream.stop()
             self._info("Audio input stream muted")
             return True
         return False
-            
+
     def unmute(self):
         """Resume the audio input stream if it exists"""
-        if self.input_audio_stream and not self.input_audio_stream.is_active():
-            self.input_audio_stream.start_stream()
+        if self.input_audio_stream and not self.input_audio_stream.active:
+            self.input_audio_stream.start()
             self._info("Audio input stream unmuted")
             return True
         return False
-    
+
     def is_muted(self):
         """Check if the audio input stream is currently muted"""
         if self.input_audio_stream:
-            return not self.input_audio_stream.is_active()
+            return not self.input_audio_stream.active
         return True  # If no stream exists, consider it muted
             
     def shutdown(self):
         # Clean up audio resources
         if self.input_audio_stream:
-            self.input_audio_stream.stop_stream()
+            self.input_audio_stream.stop()
             self.input_audio_stream.close()
             self.input_audio_stream = None
 
@@ -623,8 +616,8 @@ class AudioToText:
         self.caption_printer.start()
 
         try:
-            self.input_audio_stream.start_stream()
-            self._info(f">>> START input audio stream active: {self.input_audio_stream.is_active()}")
+            self.input_audio_stream.start()
+            self._info(f">>> START input audio stream active: {self.input_audio_stream.active}")
 
             while True:
                 # Check for stop signal
@@ -658,8 +651,8 @@ class AudioToText:
                             break
         finally:
             # Always try to stop the stream, ignoring errors
-            if self.input_audio_stream.is_active():
-                self.input_audio_stream.stop_stream()
+            if self.input_audio_stream.active:
+                self.input_audio_stream.stop()
 
         return all_transcribed
 

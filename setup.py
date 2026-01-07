@@ -95,7 +95,7 @@ def setup_models():
     print("📦 Setting up models...")
     
     # Create model directories
-    for dir_name in ["models/piper", "models/kokoro", "models/llms"]:
+    for dir_name in ["models/piper", "models/kokoro", "models/llms", "models/moonshine_tiny"]:
         Path(dir_name).mkdir(parents=True, exist_ok=True)
     
     # Download Piper models
@@ -137,6 +137,11 @@ def setup_models():
         "LFM2-1.2B model (better quality)"
     )
 
+    # Download Moonshine models
+    print("🌙 Downloading Moonshine ASR models...")
+    run_command([sys.executable, "download_moonshine_models.py"],
+                "Downloading Moonshine models", check=False)
+
 def main():
     """Main setup function"""
     print("🚀 Setting up Edge Voice Agent...")
@@ -151,13 +156,9 @@ def main():
     check_llama_cpp()
     
     # Install Python dependencies
-    run_command([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], 
+    run_command([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"],
                 "Installing Python dependencies")
-    
-    # Download spacy model
-    run_command([sys.executable, "-m", "spacy", "download", "en_core_web_sm"], 
-                "Downloading spacy model")
-    
+
     # Setup models
     setup_models()
     

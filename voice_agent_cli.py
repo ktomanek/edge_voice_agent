@@ -1,13 +1,19 @@
 # CLI for voice agent
 # Default settings meant to be run on tiny screen (Raspberry Pi)
 
+import time
+start_time = time.time()
+print("Loading voice_agent_cli.py")
+
 import threading
 import sys
 import os
-import time
+
 import select
-from voice_agent import VoiceAgent, LLmToAudio
+from voice_agent import VoiceAgent
 import voice_agent_utils
+
+print(f"Imports: in {time.time() - start_time} seconds")
 
 # Only import termios on platforms that support it (Unix/Linux/macOS)
 try:
@@ -85,6 +91,8 @@ def main():
     parser = voice_agent_utils.get_cli_argument_parser()
     args = parser.parse_args()
 
+    t1 = time.time()
+    print(">> Initializing Voice Agent <<")
     va = VoiceAgent()
 
     va.init_LLmToAudioOutput(
@@ -108,6 +116,11 @@ def main():
         verbose=args.verbose
     )
     va.start()
+    print(f">> Took {time.time()-t1} secs to initialize Voice Agent <<")
+
+    # full start time to ready
+    print(f"------> Voice Agent ready in {time.time()-start_time} seconds")
+    
 
     # Setup keyboard control if enabled
     keyboard_thread = None

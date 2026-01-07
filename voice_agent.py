@@ -20,13 +20,17 @@ from captioning_lib import captioning_utils
 from captioning_lib import printers
 from tts_lib import tts_engines
 
-t1 = time.time()
-import spacy
-nlp = spacy.load("en_core_web_sm")  # Load this once, ideally in __init__
-print(f"Loading spacy took: {time.time()-t1}")
+import pysbd
+nlp = pysbd.Segmenter(language="en", clean=False)
+
+def get_sentences(text):
+    return nlp.segment(text)
 
 import emoji
 import voice_agent_utils
+
+MOONSHINE_MODEL_DIR = 'models/moonshine_tiny'
+
 
 class ColoredPrinter(printers.CaptionPrinter):
 
@@ -148,20 +152,22 @@ class LLmToAudio:
             messages=[{"role": "user", "content": "hi"}],
             stream=False
         )
-        self._info(f"LLM warmed up in {time.time()-t1} secs.")
+        print(f"LLM warmed up in {time.time()-t1} secs.")
 
         # Init TTS
         self.max_words_to_speak_start = max_words_to_speak_start
         self.max_words_to_speak = max_words_to_speak
         assert self.max_words_to_speak_start <= self.max_words_to_speak
 
+        t1 = time.time()
         if tts_engine == 'piper':
             print('Initializing Piper TTS')
             if tts_model_path:
-                print(f"Initializing with tts model: {tts_model_path}")                
-                self.tts = tts_engines.TTS_Piper(tts_model_path)
+                self.tts = tts_engines.TTS_Piper(tts_model_path, warmup=False)
+                print(f"Using tts model: {tts_model_path}")                
             else:
-                self.tts = tts_engines.TTS_Piper()
+                self.tts = tts_engines.TTS_Piper(warmup=False)
+                print(f"Using default Piper model: {self.tts.model_path}")
         elif tts_engine == 'kokoro':
             print('Initializing Kokoro TTS')
             if tts_model_path:
@@ -171,12 +177,11 @@ class LLmToAudio:
                 self.tts = tts_engines.TTS_Kokoro()
         else:
             raise ValueError('Unknown tts engine.')
-        
         self.sample_rate = self.tts.get_sample_rate()
-        print(f"Using sample rate: {self.sample_rate} Hz")
-        
+        self._info(f"Using sample rate: {self.sample_rate} Hz")
         self.speaking_rate = speaking_rate
-        print(f"Using speaking rate: {self.speaking_rate}")        
+        self._info(f"Using speaking rate: {self.speaking_rate}")        
+        print(f"> TTS initialized in {time.time()-t1} secs.")
 
         # increase buffer size if needed, esp on slower devices like raspberry pi
         self.audio_buffer_size = 2048
@@ -195,7 +200,7 @@ class LLmToAudio:
 
         # Signal handlers for graceful termination
         if threading.current_thread() is threading.main_thread():
-            print('>>> setting up signal handlers')
+            self._info('>>> setting up signal handlers')
             signal.signal(signal.SIGINT, self._signal_handler)
             signal.signal(signal.SIGTERM, self._signal_handler)
 
@@ -313,7 +318,7 @@ class LLmToAudio:
             
             # find complete sentences
             try:
-                sentences = [sent.text.strip() for sent in nlp(self.text_buffer).sents]
+                sentences = get_sentences(self.text_buffer)
                 if len(sentences) > 1:
                     complete_sentences = sentences[:-1]
                     
@@ -516,12 +521,18 @@ class AudioToText:
         self.input_audio_stream = None
 
         # Load models
-        self.vad = captioning_utils.get_vad(eos_min_silence=200)    
+        t1 = time.time()
+        self.vad = captioning_utils.get_vad(eos_min_silence=200)
+        print(f"VAD model loaded in {time.time()-t1} secs.")    
+        
+        t1 = time.time()
         self.asr_model = captioning_utils.load_asr_model(
             model_name=asr_model_name, 
+            model_path=MOONSHINE_MODEL_DIR,
             language=self.language,
             sampling_rate=16000, 
             show_word_confidence_scores=False)
+        print(f"ASR model '{asr_model_name}' loaded in {time.time()-t1} secs.")
 
         # Transcription thread
         self.stop_event = threading.Event()
@@ -668,10 +679,14 @@ class VoiceAgent():
         pass
 
     def init_AudioToText(self, **audioToTextKwargs):
+        t1 = time.time()
         self.input_handler = AudioToText(**audioToTextKwargs)
+        print(f"AudioToText initialized in {time.time()-t1} secs.")
 
     def init_LLmToAudioOutput(self, **llmToAudiOutputArgsKwargs):
+        t1 = time.time()
         self.output_handler = LLmToAudio(**llmToAudiOutputArgsKwargs)
+        print(f"> LLmToAudioOutput initialized in {time.time()-t1} secs.")
     
     def start(self):
         print("Starting voice agent...")

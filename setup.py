@@ -95,7 +95,7 @@ def setup_models():
     print("📦 Setting up models...")
     
     # Create model directories
-    for dir_name in ["models/piper", "models/kokoro", "models/llms", "models/moonshine_tiny"]:
+    for dir_name in ["models/piper", "models/kokoro", "models/llms", "models/moonshine_tiny", "models/silero_vad"]:
         Path(dir_name).mkdir(parents=True, exist_ok=True)
     
     # Download Piper models
@@ -111,18 +111,18 @@ def setup_models():
         "Piper voice model"
     )
     
-    # Download Kokoro models
-    print("🎵 Downloading Kokoro TTS models...")
-    download_file(
-        "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin",
-        "models/kokoro/kokoro-voices-v1.0.bin",
-        "Kokoro voices"
-    )
-    download_file(
-        "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.fp16.onnx",
-        "models/kokoro/kokoro-v1.0.fp16.onnx",
-        "Kokoro model"
-    )
+    # # Download Kokoro models
+    # print("🎵 Downloading Kokoro TTS models...")
+    # download_file(
+    #     "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin",
+    #     "models/kokoro/kokoro-voices-v1.0.bin",
+    #     "Kokoro voices"
+    # )
+    # download_file(
+    #     "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.fp16.onnx",
+    #     "models/kokoro/kokoro-v1.0.fp16.onnx",
+    #     "Kokoro model"
+    # )
     
     # Download LLM models
     print("🧠 Downloading LLM models...")
@@ -141,6 +141,11 @@ def setup_models():
     print("🌙 Downloading Moonshine ASR models...")
     run_command([sys.executable, "download_moonshine_models.py"],
                 "Downloading Moonshine models", check=False)
+
+    # Download Silero VAD model
+    print("🎤 Downloading Silero VAD model...")
+    run_command([sys.executable, "download_silero_vad_model.py"],
+                "Downloading Silero VAD model", check=False)
 
 def main():
     """Main setup function"""

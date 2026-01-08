@@ -3,7 +3,7 @@
 
 import time
 start_time = time.time()
-print("Loading voice_agent_cli.py")
+print("Loading Voice Agent...")
 
 import threading
 import sys
@@ -13,7 +13,8 @@ import select
 from voice_agent import VoiceAgent
 import voice_agent_utils
 
-print(f"Imports: in {time.time() - start_time} seconds")
+print(f"> Imports done in {time.time() - start_time} seconds")
+
 
 # Only import termios on platforms that support it (Unix/Linux/macOS)
 try:

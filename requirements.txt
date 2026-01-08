@@ -1,14 +1,10 @@
 git+https://github.com/ktomanek/captioning.git
 git+https://github.com/ktomanek/edge_tts_comparison.git
-git+https://git@github.com/usefulsensors/moonshine.git#subdirectory=moonshine-onnx
-soundfile
-librosa
 numpy
 emoji
 openai
 pyaudio
 psutil
 rich
-silero_vad
 sounddevice
 pysbd

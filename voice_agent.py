@@ -5,9 +5,10 @@
 # Supports several on-device runnable tts-engines and asr models.
 # Defaults are set for smallest models so that it can run on edge devices like Raspberry Pi 5.
 
-from datetime import datetime
+import time
+start_time = time.time()
+
 import json
-import logging
 import queue
 import signal
 import sounddevice as sd
@@ -15,14 +16,13 @@ import sys
 import threading
 import time
 
-from openai import OpenAI
-from captioning_lib import captioning_utils
-from captioning_lib import printers
+from captioning_lib import captioning_utils, printers
 from tts_lib import tts_engines
+
+from openai import OpenAI
 
 import pysbd
 nlp = pysbd.Segmenter(language="en", clean=False)
-
 def get_sentences(text):
     return nlp.segment(text)
 

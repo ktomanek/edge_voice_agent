@@ -46,11 +46,13 @@
 * ```pip install -r requirements.txt```
 
 #### Download assets
-* sentence splitter: ```python -m spacy download en_core_web_sm```
 * download models (check scripts if you want other models):
    * piper tts models: ```sh download_piper_models.sh```
-   * kokoro tts models: ```sh download_kokoro_models.sh```
    * llm models: ```sh download_llm.sh```
+   * moonshine models: ```python download_moonshine_models.py```
+   * silero vad models: ```python download_silero_vad_model.py```
+* optional:
+   * kokoro tts models: ```sh download_kokoro_models.sh```
 
 #### Llama.cpp
 * install [LLama.cpp](https://github.com/ggml-org/llama.cpp) locally and make sure that at least `llama-server` is added to the path

@@ -19,7 +19,7 @@ import time
 from captioning_lib import captioning_utils, printers
 from tts_lib import tts_engines
 
-from openai import OpenAI
+from llm_client import LLMClient
 
 import pysbd
 nlp = pysbd.Segmenter(language="en", clean=False)
@@ -137,7 +137,7 @@ class LLmToAudio:
         
         ## Init LLM and prompts
         self.llm_server_url = llm_server_url
-        self.llm_client = OpenAI(base_url=llm_server_url, api_key=voice_agent_utils.DEFAULT_LLM_SERVER_API_KEY)
+        self.llm_client = LLMClient(base_url=llm_server_url, api_key=voice_agent_utils.DEFAULT_LLM_SERVER_API_KEY)
         self.system_prompt = system_prompt
         self.start_message = start_message
         self.messages = [

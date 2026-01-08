@@ -11,12 +11,6 @@
       * LLM: Gemma3:1b
 
 
-## Update
-
-* switched to LLama.cpp to support newer models
-* set new default model to [LiquidAI's LFM2](https://www.liquid.ai/blog/liquid-foundation-models-v2-our-second-series-of-generative-ai-models) due to increased speed
-* easier installation, support of kittenTTS, new piper version
-
 ## Installation
 
 ### Quick Start (Recommended)
@@ -51,8 +45,6 @@
    * llm models: ```sh download_llm.sh```
    * moonshine models: ```python download_moonshine_models.py```
    * silero vad models: ```python download_silero_vad_model.py```
-* optional:
-   * kokoro tts models: ```sh download_kokoro_models.sh```
 
 #### Llama.cpp
 * install [LLama.cpp](https://github.com/ggml-org/llama.cpp) locally and make sure that at least `llama-server` is added to the path
@@ -66,6 +58,9 @@
 
 
 ### Optional
+
+#### Kokoro TTS
+* Download models if using Kokoro instead of Piper: ```sh download_kokoro_models.sh```
 
 #### Nvidia ASR
 * if you want to use Nvidia's ASR models (nemo): ```pip install "nemo_toolkit[asr]"```

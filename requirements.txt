@@ -1,7 +1,6 @@
 git+https://github.com/ktomanek/captioning.git
 git+https://github.com/ktomanek/edge_tts_comparison.git
 numpy
-emoji
 httpx
 pyaudio
 psutil

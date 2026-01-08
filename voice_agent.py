@@ -26,7 +26,7 @@ nlp = pysbd.Segmenter(language="en", clean=False)
 def get_sentences(text):
     return nlp.segment(text)
 
-import emoji
+import re
 import voice_agent_utils
 
 MOONSHINE_MODEL_DIR = 'models/moonshine_tiny'
@@ -152,7 +152,7 @@ class LLmToAudio:
             messages=[{"role": "user", "content": "hi"}],
             stream=False
         )
-        print(f"LLM warmed up in {time.time()-t1} secs.")
+        print(f"LLM warmed up in {time.time()-t1:.2f} secs.")
 
         # Init TTS
         self.max_words_to_speak_start = max_words_to_speak_start
@@ -181,7 +181,7 @@ class LLmToAudio:
         self._info(f"Using sample rate: {self.sample_rate} Hz")
         self.speaking_rate = speaking_rate
         self._info(f"Using speaking rate: {self.speaking_rate}")        
-        print(f"> TTS initialized in {time.time()-t1} secs.")
+        print(f"> TTS initialized in {time.time()-t1:.2f} secs.")
 
         # increase buffer size if needed, esp on slower devices like raspberry pi
         self.audio_buffer_size = 2048
@@ -252,7 +252,8 @@ class LLmToAudio:
         Remove formatting symbols we don't want to be spoken.
         """
         text = text.replace('*', ' ')
-        text = emoji.replace_emoji(text, replace='')
+        # Remove emojis using regex (faster than emoji library)
+        text = re.sub(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002702-\U000027B0\U000024C2-\U0001F251]+', '', text)
         return text
             
     def _info(self, text):
@@ -523,7 +524,7 @@ class AudioToText:
         # Load models
         t1 = time.time()
         self.vad = captioning_utils.get_vad(eos_min_silence=200)
-        print(f"VAD model loaded in {time.time()-t1} secs.")    
+        print(f"VAD model loaded in {time.time()-t1:.2f} secs.")    
         
         t1 = time.time()
         self.asr_model = captioning_utils.load_asr_model(
@@ -532,7 +533,7 @@ class AudioToText:
             language=self.language,
             sampling_rate=16000, 
             show_word_confidence_scores=False)
-        print(f"ASR model '{asr_model_name}' loaded in {time.time()-t1} secs.")
+        print(f"ASR model '{asr_model_name}' loaded in {time.time()-t1:.2f} secs.")
 
         # Transcription thread
         self.stop_event = threading.Event()
@@ -681,12 +682,12 @@ class VoiceAgent():
     def init_AudioToText(self, **audioToTextKwargs):
         t1 = time.time()
         self.input_handler = AudioToText(**audioToTextKwargs)
-        print(f"AudioToText initialized in {time.time()-t1} secs.")
+        print(f"> AudioToText initialized in {time.time()-t1:.2f} secs.")
 
     def init_LLmToAudioOutput(self, **llmToAudiOutputArgsKwargs):
         t1 = time.time()
         self.output_handler = LLmToAudio(**llmToAudiOutputArgsKwargs)
-        print(f"> LLmToAudioOutput initialized in {time.time()-t1} secs.")
+        print(f"> LLmToAudioOutput initialized in {time.time()-t1:.2f} secs.")
     
     def start(self):
         print("Starting voice agent...")

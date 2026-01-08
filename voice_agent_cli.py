@@ -13,7 +13,7 @@ import select
 from voice_agent import VoiceAgent
 import voice_agent_utils
 
-print(f"> Imports done in {time.time() - start_time} seconds")
+print(f">> -- All imports done in {time.time() - start_time:.2f} seconds -- <<")
 
 
 # Only import termios on platforms that support it (Unix/Linux/macOS)
@@ -117,10 +117,10 @@ def main():
         verbose=args.verbose
     )
     va.start()
-    print(f">> Took {time.time()-t1} secs to initialize Voice Agent <<")
+    print(f">> Took {time.time()-t1:.2f} secs to initialize Voice Agent <<")
 
     # full start time to ready
-    print(f"------> Voice Agent ready in {time.time()-start_time} seconds")
+    print(f">> --  Voice Agent ready in {time.time()-start_time:.2f} seconds -- <<")
     
 
     # Setup keyboard control if enabled

@@ -166,7 +166,12 @@ def main():
 
     # Setup models
     setup_models()
-    
+
+    # Precompile Python files to .pyc for faster imports
+    print("⚡ Precompiling Python files to bytecode...")
+    run_command([sys.executable, "-m", "compileall", "-b", "."],
+                "Compiling Python files to .pyc", check=False)
+
     print("=" * 50)
     print("✅ Setup complete!")
     print("\n📋 Next steps:")

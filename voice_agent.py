@@ -135,25 +135,6 @@ class LLmToAudio:
         """Initialize the streamer with Piper and LLM models."""
         self.verbose = verbose
         
-        ## Init LLM and prompts
-        self.llm_server_url = llm_server_url
-        self.llm_client = LLMClient(base_url=llm_server_url, api_key=voice_agent_utils.DEFAULT_LLM_SERVER_API_KEY)
-        self.system_prompt = system_prompt
-        self.start_message = start_message
-        self.messages = [
-            {'role': 'system', 'content': self.system_prompt},
-        ]
-        self.show_llm_model_info()
-
-        # Warm up LLM
-        t1 = time.time()
-        _ = self.llm_client.chat.completions.create(
-            model="mymodel",  # This can be any string
-            messages=[{"role": "user", "content": "hi"}],
-            stream=False
-        )
-        print(f"LLM warmed up in {time.time()-t1:.2f} secs.")
-
         # Init TTS
         self.max_words_to_speak_start = max_words_to_speak_start
         self.max_words_to_speak = max_words_to_speak
@@ -185,6 +166,26 @@ class LLmToAudio:
 
         # increase buffer size if needed, esp on slower devices like raspberry pi
         self.audio_buffer_size = 2048
+
+        ## Init LLM and prompts
+        self.llm_server_url = llm_server_url
+        self.llm_client = LLMClient(base_url=llm_server_url, api_key=voice_agent_utils.DEFAULT_LLM_SERVER_API_KEY)
+        self.system_prompt = system_prompt
+        self.start_message = start_message
+        self.messages = [
+            {'role': 'system', 'content': self.system_prompt},
+        ]
+        self.show_llm_model_info()
+
+        # Warm up LLM
+        t1 = time.time()
+        _ = self.llm_client.chat.completions.create(
+            model="mymodel",  # This can be any string
+            messages=[{"role": "user", "content": "hi"}],
+            stream=False
+        )
+        print(f"LLM warmed up in {time.time()-t1:.2f} secs.")
+
 
         # Printer
         if not printer:

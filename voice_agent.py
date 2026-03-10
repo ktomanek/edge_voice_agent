@@ -493,6 +493,7 @@ class AudioToText:
 
     def __init__(self, asr_model_name,
                  asr_model_path=None,
+                 disable_partials=True,
                  language='en',
                  end_of_utterance_duration=0.5,
                  min_partial_duration=0.2,
@@ -503,9 +504,10 @@ class AudioToText:
         self.verbose = verbose
         self.language = language
         self.end_of_utterance_duration = end_of_utterance_duration
-        
+
         self.min_partial_duration = min_partial_duration
         self.max_segment_duration = max_segment_duration
+        self.disable_partials = disable_partials
         
         if not printer:
             self.caption_printer = ColoredPrinter("User Input", "blue")
@@ -553,14 +555,15 @@ class AudioToText:
 
         # Set stop flag and transcriber thread
         self.stop_event.clear()
-        self.transcriber = threading.Thread(target=self.transcription_handler.transcription_worker, 
+        self.transcriber = threading.Thread(target=self.transcription_handler.transcription_worker,
                                     kwargs={'vad': self.vad,
                                             'asr': self.asr_model,
                                             'audio_queue': self.audio_queue,
                                             'caption_printer': self.caption_printer,
                                             'stop_threads': self.stop_event,
                                             'min_partial_duration': self.min_partial_duration,
-                                            'max_segment_duration': self.max_segment_duration})
+                                            'max_segment_duration': self.max_segment_duration,
+                                            'disable_partials': self.disable_partials})
         self.transcriber.daemon = True
         self.transcriber.start()
 

@@ -20,6 +20,8 @@ def get_cli_argument_parser():
     parser.add_argument("--tts_engine", choices=['piper', 'kokoro'], default="piper", help="which tts engine to use; piper is much faster than kokoro.")
     parser.add_argument("--asr_model_name", default="moonshine_tiny", help="which asr model to run.")
     parser.add_argument("--asr_model_path", default="models/moonshine_tiny", help="Path to the ASR model directory (use empty string to unset for models that don't need it)")
+    parser.add_argument("--disable_partials", action="store_true", default=True, help="Disable partial transcription results (default: True)")
+    parser.add_argument("--enable_partials", dest="disable_partials", action="store_false", help="Enable partial transcription results")
     parser.add_argument("--language", default=DEFAULT_LANGUAGE, help="language to use")
     parser.add_argument("--tts_model_path", required=False, help="Path to the tts model (.onnx file)")
     parser.add_argument("--speaking_rate", type=float, default=1.0, help="how fast should generated speech be, 1.0 is default, higher numbers mean faster speech")

@@ -111,6 +111,7 @@ def main():
 
     va.init_AudioToText(
         asr_model_name=args.asr_model_name,
+        asr_model_path=args.asr_model_path if args.asr_model_path else None,
         language=args.language,
         min_partial_duration=args.min_partial_duration,
         end_of_utterance_duration=args.end_of_utterance_duration,

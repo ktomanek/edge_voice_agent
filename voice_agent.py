@@ -29,8 +29,6 @@ def get_sentences(text):
 import re
 import voice_agent_utils
 
-MOONSHINE_MODEL_DIR = 'models/moonshine_tiny'
-
 
 class ColoredPrinter(printers.CaptionPrinter):
 
@@ -493,9 +491,10 @@ class LLmToAudio:
 class AudioToText:
     """Stream from audio and transcribe."""
 
-    def __init__(self, asr_model_name, 
+    def __init__(self, asr_model_name,
+                 asr_model_path=None,
                  language='en',
-                 end_of_utterance_duration=0.5, 
+                 end_of_utterance_duration=0.5,
                  min_partial_duration=0.2,
                  max_segment_duration=15,
                  verbose=False,
@@ -529,10 +528,10 @@ class AudioToText:
         
         t1 = time.time()
         self.asr_model = captioning_utils.load_asr_model(
-            model_name=asr_model_name, 
-            model_path=MOONSHINE_MODEL_DIR,
+            model_name=asr_model_name,
+            model_path=asr_model_path,
             language=self.language,
-            sampling_rate=16000, 
+            sampling_rate=16000,
             show_word_confidence_scores=False)
         print(f"ASR model '{asr_model_name}' loaded in {time.time()-t1:.2f} secs.")
 

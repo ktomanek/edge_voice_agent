@@ -12,6 +12,7 @@ import os
 import select
 from voice_agent import VoiceAgent
 import voice_agent_utils
+from voice_agent_displays import get_printer
 
 print(f">> -- All imports done in {time.time() - start_time:.2f} seconds -- <<")
 
@@ -96,6 +97,10 @@ def main():
     print(">> Initializing Voice Agent <<")
     va = VoiceAgent()
 
+    # Create printers based on display type
+    user_printer = get_printer(args.display, "User Input", "blue")
+    agent_printer = get_printer(args.display, "Agent Output", "magenta")
+
     va.init_LLmToAudioOutput(
         llm_server_url=args.llm_server_url,
         system_prompt=args.system_prompt,
@@ -106,7 +111,8 @@ def main():
         max_words_to_speak_start=args.max_words_to_speak_start,
         max_words_to_speak=args.max_words_to_speak,
         verbose=args.verbose,
-        single_turn=args.single_turn
+        single_turn=args.single_turn,
+        printer=agent_printer
     )
 
 
@@ -117,7 +123,8 @@ def main():
         language=args.language,
         min_partial_duration=args.min_partial_duration,
         end_of_utterance_duration=args.end_of_utterance_duration,
-        verbose=args.verbose
+        verbose=args.verbose,
+        printer=user_printer
     )
     va.start()
     print(f">> Took {time.time()-t1:.2f} secs to initialize Voice Agent <<")

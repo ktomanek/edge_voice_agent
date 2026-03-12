@@ -5,13 +5,12 @@ DEFAULT_LLM_SERVER_MODEL = "dummy"
 DEFAULT_LLM_SERVER_API_KEY = "dummy"
 
 DEFAULT_SYSTEM_PROMPT = """
-You are an AI assistant that runs on an edge device. You're helpful and friendly, but you are a bit of a weirdo and certainly funny at times. Keep your responses short and concise (no more than 2 sentences), as they will be read aloud.
-It is generally helpful to use discourse markers where appropriate to keep a good conversation flow. Remember be witty but also understanding.
+Translate the following into Spanish. Your response should only contain a single translation (no context, commentary, or explanation):
 """
-DEFAULT_START_MESSAGE = "Hello, how can I help?"
+DEFAULT_START_MESSAGE = "Speak and I will translate into your selected language."
 DEFAULT_LANGUAGE = "en"
-DEFAULT_GOODBYE_MESSAGE = 'Good bye!'
-DEFAULT_EXIT_COMMAND = 'please exit'
+DEFAULT_GOODBYE_MESSAGE = 'Hasta la vista, baby!'
+DEFAULT_EXIT_COMMAND = 'Please quit'
 
 
 def get_cli_argument_parser():
@@ -33,7 +32,8 @@ def get_cli_argument_parser():
     parser.add_argument("--end_of_utterance_duration", type=float, default=0.5, help="Silence seconds until end of turn of user identified")
     parser.add_argument("--enable_keyboard_control", action="store_true", default=False, help="Enable keyboard control (space to mute/unmute, ESC to exit)")
     parser.add_argument("--verbose", action="store_true", help="Verbose status info")
-    
+    parser.add_argument("--single_turn", action="store_true", help="Disable conversation history for single-turn interactions.")
+
     return parser
 
 def get_ui_argument_parser():

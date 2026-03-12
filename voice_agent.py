@@ -128,10 +128,12 @@ class LLmToAudio:
                  max_words_to_speak_start=5,  # make sure that we get to speak quickly at the beginning
                  max_words_to_speak=15, # later speak at last after this many words, or when a sentence is finished
                  verbose=False,
-                 printer=None
+                 printer=None,
+                 single_turn=False
                  ):
         """Initialize the streamer with Piper and LLM models."""
         self.verbose = verbose
+        self.single_turn = single_turn
         
         # Init TTS
         self.max_words_to_speak_start = max_words_to_speak_start
@@ -434,6 +436,9 @@ class LLmToAudio:
 
     def process_prompt(self, user_prompt):
         """Process a prompt through LLM and stream to Piper."""
+
+        if self.single_turn:
+            self.messages = [{'role': 'system', 'content': self.system_prompt}]
 
         self.messages.append({'role': 'user', 'content': user_prompt})
 

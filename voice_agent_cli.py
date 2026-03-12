@@ -131,7 +131,15 @@ def main():
 
     # full start time to ready
     print(f">> --  Voice Agent ready in {time.time()-start_time:.2f} seconds -- <<")
-    
+
+    # Setup Whisplay button to exit if using whisplay display
+    if args.display == 'whisplay':
+        def on_whisplay_button():
+            print("\nWhisplay button pressed - exiting...")
+            va.output_handler._speak_sentence(voice_agent_utils.DEFAULT_GOODBYE_MESSAGE)
+            va.trigger_stop_events()
+        user_printer.on_button_press(on_whisplay_button)
+        print("Press Whisplay button to exit")
 
     # Setup keyboard control if enabled
     keyboard_thread = None
@@ -154,6 +162,10 @@ def main():
         if keyboard_thread and keyboard_thread.is_alive():
             stop_event.set()
             keyboard_thread.join(timeout=1.0)
+        # Clean up Whisplay display
+        if args.display == 'whisplay':
+            user_printer.cleanup()
+            agent_printer.cleanup()
 
 if __name__ == "__main__":
     main()

@@ -108,10 +108,122 @@ class MinimalPrinter(printers.CaptionPrinter):
         sys.stdout.flush()
 
 
+# Try to import Whisplay library (pip install -e . from Whisplay_RPI5 repo)
+try:
+    from WhisPlay import WhisPlayBoard
+    from PIL import Image, ImageDraw
+    WHISPLAY_AVAILABLE = True
+except ImportError:
+    WHISPLAY_AVAILABLE = False
+
+
+class WhisplayPrinter(printers.CaptionPrinter):
+    """Whisplay HAT display showing ear/mic icons with colored LEDs."""
+
+    def __init__(self, title=None, title_color=None):
+        # title and title_color are accepted but ignored for API compatibility
+        if not WHISPLAY_AVAILABLE:
+            raise ImportError("Whisplay library not available. Install with: pip install git+https://github.com/ktomanek/Whisplay_RPI5.git")
+
+        self._board = WhisPlayBoard()
+        self._board.set_backlight(80)
+        self._is_listening = False
+
+    def _draw_ear_icon(self):
+        """Draw a simple ear shape."""
+        width = self._board.LCD_WIDTH
+        height = self._board.LCD_HEIGHT
+        img = Image.new('RGB', (width, height), (0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        # Draw a simple ear shape using arcs and lines
+        cx, cy = width // 2, height // 2
+        # Outer ear arc
+        draw.arc([cx-50, cy-70, cx+50, cy+70], 270, 90, fill=(255, 100, 100), width=8)
+        # Inner ear curve
+        draw.arc([cx-30, cy-40, cx+20, cy+40], 270, 90, fill=(255, 100, 100), width=6)
+
+        # Convert to RGB565
+        pixel_data = []
+        for py in range(height):
+            for px in range(width):
+                r, g, b = img.getpixel((px, py))
+                rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+                pixel_data.append((rgb565 >> 8) & 0xFF)
+                pixel_data.append(rgb565 & 0xFF)
+        return pixel_data
+
+    def _draw_mic_icon(self):
+        """Draw a simple microphone shape."""
+        width = self._board.LCD_WIDTH
+        height = self._board.LCD_HEIGHT
+        img = Image.new('RGB', (width, height), (0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        cx, cy = width // 2, height // 2
+        # Mic head (rounded rectangle)
+        draw.rounded_rectangle([cx-25, cy-60, cx+25, cy+20], radius=20, fill=(100, 255, 100))
+        # Mic stand
+        draw.arc([cx-40, cy-10, cx+40, cy+50], 0, 180, fill=(100, 255, 100), width=6)
+        # Mic base
+        draw.line([cx, cy+50, cx, cy+80], fill=(100, 255, 100), width=6)
+        draw.line([cx-30, cy+80, cx+30, cy+80], fill=(100, 255, 100), width=6)
+
+        # Convert to RGB565
+        pixel_data = []
+        for py in range(height):
+            for px in range(width):
+                r, g, b = img.getpixel((px, py))
+                rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+                pixel_data.append((rgb565 >> 8) & 0xFF)
+                pixel_data.append(rgb565 & 0xFF)
+        return pixel_data
+
+    def start(self):
+        """Show listening state: ear icon with red LED."""
+        self._is_listening = True
+        self._board.set_rgb(255, 0, 0)  # Red LED
+        image_data = self._draw_ear_icon()
+        self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
+
+    def stop(self):
+        self._is_listening = False
+        self._board.set_rgb(0, 0, 0)  # LED off
+        self._board.fill_screen(0)  # Clear screen
+
+    def print(self, transcript, duration=None, partial=False, is_recent_chunk_mode=False, recent_chunk_duration=None):
+        """Update the display - for Whisplay we just show status icons."""
+        # Console output for debugging
+        sys.stdout.write("\r\033[K")
+        if partial:
+            sys.stdout.write(transcript)
+            sys.stdout.flush()
+        else:
+            print(transcript)
+
+    def show_idle(self, text=None):
+        """Show speaking state: microphone icon with green LED."""
+        self._board.set_rgb(0, 255, 0)  # Green LED
+        image_data = self._draw_mic_icon()
+        self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
+
+    def on_button_press(self, callback):
+        """Register a callback for when the Whisplay button is pressed."""
+        self._board.on_button_press(callback)
+
+    def cleanup(self):
+        """Clean up Whisplay resources."""
+        if hasattr(self, '_board'):
+            self._board.set_rgb(0, 0, 0)
+            self._board.set_backlight(0)
+            self._board.cleanup()
+
+
 # Registry of available display types
 DISPLAY_TYPES = {
     'colored': ColoredPrinter,
     'minimal': MinimalPrinter,
+    'whisplay': WhisplayPrinter,
 }
 
 
@@ -119,4 +231,6 @@ def get_printer(display_type, title, title_color='blue'):
     """Factory function to create a printer instance."""
     if display_type not in DISPLAY_TYPES:
         raise ValueError(f"Unknown display type: {display_type}. Available: {list(DISPLAY_TYPES.keys())}")
+    if display_type == 'whisplay' and not WHISPLAY_AVAILABLE:
+        raise ImportError("Whisplay library not available")
     return DISPLAY_TYPES[display_type](title, title_color)

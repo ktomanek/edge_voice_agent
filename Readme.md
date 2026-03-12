@@ -73,6 +73,46 @@
 
 ## CLI command line arguments
 
+### Display Options
+
+The voice agent supports different display modes via the `--display` argument:
+
+| Display | Description |
+| ------- | ----------- |
+| `colored` | (default) Rich console output with colors, spinners, and styled text |
+| `minimal` | Simple emoji-based status display (👂 listening, 🗣️ speaking) |
+| `whisplay` | [Whisplay HAT](https://github.com/ktomanek/Whisplay_RPI5) display with ear/mic icons and colored LEDs |
+
+Usage:
+```bash
+python voice_agent_cli.py --display colored   # default
+python voice_agent_cli.py --display minimal   # minimal emoji output
+python voice_agent_cli.py --display whisplay  # Whisplay HAT display
+```
+
+#### Whisplay Display
+
+For the Whisplay HAT display on Raspberry Pi 5, you need to install system packages first (lgpio cannot be pip installed):
+
+```bash
+# Install system packages
+sudo apt install python3-lgpio python3-gpiozero python3-spidev python3-pil
+
+# Create venv with access to system packages
+python3 -m venv --system-site-packages venv
+source venv/bin/activate
+
+# Install the Whisplay driver
+pip install git+https://github.com/ktomanek/Whisplay_RPI5.git
+```
+
+The `--system-site-packages` flag is required because `lgpio` (needed for Pi 5 GPIO) must be installed via apt, not pip.
+
+The Whisplay display shows:
+- Red LED + ear icon when listening
+- Green LED + microphone icon when speaking
+- Press the button to exit
+
 ### End of utterance detection
 
 ```--end_of_utterance_duration 0.7``` determines when we consider the user input to be finished. Adapt according to user's speaking patterns, slower speakers might need a higher value. ```0.7``` seems to be a good default

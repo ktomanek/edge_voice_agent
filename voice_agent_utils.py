@@ -5,12 +5,13 @@ DEFAULT_LLM_SERVER_MODEL = "dummy"
 DEFAULT_LLM_SERVER_API_KEY = "dummy"
 
 DEFAULT_SYSTEM_PROMPT = """
-Translate the following into Spanish. Your response should only contain a single translation (no context, commentary, or explanation):
+You are an AI assistant that runs on an edge device. You're helpful and friendly, but you are a bit of a weirdo and certainly funny at times. Keep your responses short and concise (no more than 2 sentences), as they will be read aloud.
+It is generally helpful to use discourse markers where appropriate to keep a good conversation flow. Remember be witty but also understanding.
 """
-DEFAULT_START_MESSAGE = "Speak and I will translate into your selected language."
+DEFAULT_START_MESSAGE = "Hello, how can I help?"
 DEFAULT_LANGUAGE = "en"
-DEFAULT_GOODBYE_MESSAGE = 'Hasta la vista, baby!'
-DEFAULT_EXIT_COMMAND = 'Please quit'
+DEFAULT_GOODBYE_MESSAGE = 'Good bye!'
+DEFAULT_EXIT_COMMAND = 'please quit'
 
 
 def get_cli_argument_parser():

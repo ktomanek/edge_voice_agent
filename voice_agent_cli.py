@@ -162,10 +162,9 @@ def main():
         if keyboard_thread and keyboard_thread.is_alive():
             stop_event.set()
             keyboard_thread.join(timeout=1.0)
-        # Clean up Whisplay display
+        # Clean up Whisplay display (only once - they share the board)
         if args.display == 'whisplay':
             user_printer.cleanup()
-            agent_printer.cleanup()
 
 if __name__ == "__main__":
     main()

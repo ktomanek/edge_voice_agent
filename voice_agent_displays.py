@@ -116,18 +116,30 @@ try:
 except ImportError:
     WHISPLAY_AVAILABLE = False
 
+# Shared WhisPlayBoard instance (singleton) - only one board can be used at a time
+_whisplay_board_instance = None
+
+
+def _get_whisplay_board():
+    """Get or create the shared WhisPlayBoard instance."""
+    global _whisplay_board_instance
+    if _whisplay_board_instance is None:
+        _whisplay_board_instance = WhisPlayBoard()
+        _whisplay_board_instance.set_backlight(80)
+    return _whisplay_board_instance
+
 
 class WhisplayPrinter(printers.CaptionPrinter):
     """Whisplay HAT display showing ear/mic icons with colored LEDs."""
 
     def __init__(self, title=None, title_color=None):
-        # title and title_color are accepted but ignored for API compatibility
         if not WHISPLAY_AVAILABLE:
             raise ImportError("Whisplay library not available. Install with: pip install git+https://github.com/ktomanek/Whisplay_RPI5.git")
 
-        self._board = WhisPlayBoard()
-        self._board.set_backlight(80)
-        self._is_listening = False
+        self._board = _get_whisplay_board()
+        self._title = title or ""
+        # Determine if this is a "listening" (user input) or "speaking" (agent output) printer
+        self._is_user_printer = "user" in self._title.lower() or "input" in self._title.lower()
 
     def _draw_ear_icon(self):
         """Draw a simple ear shape."""
@@ -180,14 +192,19 @@ class WhisplayPrinter(printers.CaptionPrinter):
         return pixel_data
 
     def start(self):
-        """Show listening state: ear icon with red LED."""
-        self._is_listening = True
-        self._board.set_rgb(255, 0, 0)  # Red LED
-        image_data = self._draw_ear_icon()
-        self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
+        """Show appropriate state based on printer role."""
+        if self._is_user_printer:
+            # User input: listening state with ear icon and red LED
+            self._board.set_rgb(255, 0, 0)  # Red LED
+            image_data = self._draw_ear_icon()
+            self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
+        else:
+            # Agent output: speaking state with mic icon and green LED
+            self._board.set_rgb(0, 255, 0)  # Green LED
+            image_data = self._draw_mic_icon()
+            self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
 
     def stop(self):
-        self._is_listening = False
         self._board.set_rgb(0, 0, 0)  # LED off
         self._board.fill_screen(0)  # Clear screen
 
@@ -213,10 +230,12 @@ class WhisplayPrinter(printers.CaptionPrinter):
 
     def cleanup(self):
         """Clean up Whisplay resources."""
-        if hasattr(self, '_board'):
-            self._board.set_rgb(0, 0, 0)
-            self._board.set_backlight(0)
-            self._board.cleanup()
+        global _whisplay_board_instance
+        if _whisplay_board_instance is not None:
+            _whisplay_board_instance.set_rgb(0, 0, 0)
+            _whisplay_board_instance.set_backlight(0)
+            _whisplay_board_instance.cleanup()
+            _whisplay_board_instance = None
 
 
 # Registry of available display types

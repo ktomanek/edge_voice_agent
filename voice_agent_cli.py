@@ -105,7 +105,8 @@ def main():
         tts_model_path=args.tts_model_path,
         max_words_to_speak_start=args.max_words_to_speak_start,
         max_words_to_speak=args.max_words_to_speak,
-        verbose=args.verbose
+        verbose=args.verbose,
+        single_turn=args.single_turn
     )
 
 

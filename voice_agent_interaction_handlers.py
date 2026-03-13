@@ -1,10 +1,52 @@
 import sys
 import time
+import threading
 
 from captioning_lib import printers
 
+# Keyboard support for button simulation
+try:
+    import termios
+    import tty
+    import select
+    KEYBOARD_AVAILABLE = True
+except ImportError:
+    KEYBOARD_AVAILABLE = False
 
-class ColoredPrinter(printers.CaptionPrinter):
+
+def _start_keyboard_listener(callback, stop_event):
+    """Background thread that listens for space bar and calls callback."""
+    if not KEYBOARD_AVAILABLE:
+        return
+
+    fd = sys.stdin.fileno()
+    try:
+        old_settings = termios.tcgetattr(fd)
+    except:
+        return  # Not a terminal
+
+    def listener():
+        try:
+            tty.setcbreak(fd)  # Use cbreak instead of raw to allow Ctrl+C
+            while not stop_event.is_set():
+                if select.select([sys.stdin], [], [], 0.1)[0]:
+                    key = sys.stdin.read(1)
+                    if key == ' ':
+                        callback()
+        except:
+            pass
+        finally:
+            try:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            except:
+                pass
+
+    thread = threading.Thread(target=listener, daemon=True)
+    thread.start()
+    return thread
+
+
+class ColoredHandler(printers.CaptionPrinter):
 
     def __init__(self, title, title_color='blue'):
         # https://rich.readthedocs.io/en/stable/style.html
@@ -74,9 +116,20 @@ class ColoredPrinter(printers.CaptionPrinter):
 
         self.print(idle_msg, partial=True)
 
+    def on_button_press(self, callback):
+        """Register a callback for space bar press (simulates button)."""
+        if not hasattr(self, '_stop_event'):
+            self._stop_event = threading.Event()
+        _start_keyboard_listener(callback, self._stop_event)
 
-class MinimalPrinter(printers.CaptionPrinter):
-    """Minimal printer with no colors, just shows emoji for listening/speaking status."""
+    def cleanup(self):
+        """Clean up resources."""
+        if hasattr(self, '_stop_event'):
+            self._stop_event.set()
+
+
+class MinimalHandler(printers.CaptionPrinter):
+    """Minimal handler with no colors, just shows emoji for listening/speaking status."""
 
     def __init__(self, title=None, title_color=None):
         # title and title_color are accepted but ignored for API compatibility
@@ -107,6 +160,17 @@ class MinimalPrinter(printers.CaptionPrinter):
         sys.stdout.write("🗣️")
         sys.stdout.flush()
 
+    def on_button_press(self, callback):
+        """Register a callback for space bar press (simulates button)."""
+        if not hasattr(self, '_stop_event'):
+            self._stop_event = threading.Event()
+        _start_keyboard_listener(callback, self._stop_event)
+
+    def cleanup(self):
+        """Clean up resources."""
+        if hasattr(self, '_stop_event'):
+            self._stop_event.set()
+
 
 # Try to import Whisplay library (pip install -e . from Whisplay_RPI5 repo)
 try:
@@ -129,8 +193,8 @@ def _get_whisplay_board():
     return _whisplay_board_instance
 
 
-class WhisplayPrinter(printers.CaptionPrinter):
-    """Whisplay HAT display showing ear/mic icons with colored LEDs."""
+class WhisplayHandler(printers.CaptionPrinter):
+    """Whisplay HAT interaction handler showing ear/mic icons with colored LEDs."""
 
     def __init__(self, title=None, title_color=None):
         if not WHISPLAY_AVAILABLE:
@@ -238,18 +302,18 @@ class WhisplayPrinter(printers.CaptionPrinter):
             _whisplay_board_instance = None
 
 
-# Registry of available display types
-DISPLAY_TYPES = {
-    'colored': ColoredPrinter,
-    'minimal': MinimalPrinter,
-    'whisplay': WhisplayPrinter,
+# Registry of available interaction handlers
+HANDLER_TYPES = {
+    'colored': ColoredHandler,
+    'minimal': MinimalHandler,
+    'whisplay': WhisplayHandler,
 }
 
 
-def get_printer(display_type, title, title_color='blue'):
-    """Factory function to create a printer instance."""
-    if display_type not in DISPLAY_TYPES:
-        raise ValueError(f"Unknown display type: {display_type}. Available: {list(DISPLAY_TYPES.keys())}")
-    if display_type == 'whisplay' and not WHISPLAY_AVAILABLE:
+def get_handler(handler_type, title, title_color='blue'):
+    """Factory function to create an interaction handler instance."""
+    if handler_type not in HANDLER_TYPES:
+        raise ValueError(f"Unknown handler type: {handler_type}. Available: {list(HANDLER_TYPES.keys())}")
+    if handler_type == 'whisplay' and not WHISPLAY_AVAILABLE:
         raise ImportError("Whisplay library not available")
-    return DISPLAY_TYPES[display_type](title, title_color)
+    return HANDLER_TYPES[handler_type](title, title_color)

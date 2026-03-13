@@ -28,7 +28,7 @@ def get_sentences(text):
 
 import re
 import voice_agent_utils
-from voice_agent_displays import ColoredPrinter
+from voice_agent_interaction_handlers import ColoredHandler
 
 
 class LLmToAudio:
@@ -119,7 +119,7 @@ class LLmToAudio:
 
         # Printer
         if not printer:
-            self.assistant_printer = ColoredPrinter("Agent Output", "magenta")
+            self.assistant_printer = ColoredHandler("Agent Output", "magenta")
         else:
             self.assistant_printer = printer
 
@@ -127,6 +127,7 @@ class LLmToAudio:
 
         # Thread handlers
         self.stop_event = threading.Event()
+        self.interrupt_event = threading.Event()
         self.lock = threading.Lock()
 
         # Signal handlers for graceful termination
@@ -167,6 +168,29 @@ class LLmToAudio:
         # Clear states
         self.messages = []
         self.text_buffer = ""
+
+    def interrupt(self):
+        """Interrupt current speech and return to listening."""
+        self.interrupt_event.set()
+
+        # Clear sentence queue
+        with self.lock:
+            while not self.sentence_queue.empty():
+                try:
+                    self.sentence_queue.get_nowait()
+                    self.sentence_queue.task_done()
+                except:
+                    pass
+            self.text_buffer = ""
+
+        # Stop current audio playback by closing and reopening stream
+        if self.audio_stream and self.audio_stream.active:
+            self.audio_stream.stop()
+            self.audio_stream.close()
+            self.audio_stream = None
+
+        self.is_speaking = False
+        self.is_processing = False
 
 
     def shutdown(self):
@@ -304,32 +328,32 @@ class LLmToAudio:
     def _process_sentences(self):
         """Process sentences from the queue and speak them."""
         self._start_audio_stream()
-        
+
         try:
-            while not self.stop_event.is_set():
+            while not self.stop_event.is_set() and not self.interrupt_event.is_set():
                 try:
                     sentence = self.sentence_queue.get(timeout=0.5)
-                    
+
                     # Wait until not speaking to avoid overlap
-                    while self.is_speaking and not self.stop_event.is_set():
+                    while self.is_speaking and not self.stop_event.is_set() and not self.interrupt_event.is_set():
                         time.sleep(0.05)
                     
-                    if self.stop_event.is_set():
+                    if self.stop_event.is_set() or self.interrupt_event.is_set():
                         break
-                    
+
                     # Speak new sentence
                     self._speak_sentence(sentence, speed=self.speaking_rate)
                     self.sentence_queue.task_done()
-                
+
                 except queue.Empty:
                     if self.sentence_queue.empty() and not self.text_buffer and not self.is_speaking:
                         break
-        
+
         finally:
             self.is_processing = False
-            
-            # If there are still sentences and we're not stopped, restart processor
-            if not self.sentence_queue.empty() and not self.stop_event.is_set():
+
+            # If there are still sentences and we're not stopped/interrupted, restart processor
+            if not self.sentence_queue.empty() and not self.stop_event.is_set() and not self.interrupt_event.is_set():
                 self._start_sentence_processor()
     
     def _speak_sentence(self, text, speed=1.0, noise_scale=0.667, noise_w=0.8):
@@ -337,29 +361,46 @@ class LLmToAudio:
         if not text.strip():
             return
 
-        self.is_speaking = True
-        
-        self._info(f"Speaking: {text}")
-        audio_data, sample_rate = self.tts.synthesize(
-            text, target_sr = self.sample_rate, 
-            speaking_rate=speed, return_as_int16=True)
-        self.audio_stream.write(audio_data)
+        # Check for interrupt before speaking
+        if self.interrupt_event.is_set():
+            return
 
-        self.is_speaking = False
+        self.is_speaking = True
+
+        try:
+            self._info(f"Speaking: {text}")
+            audio_data, sample_rate = self.tts.synthesize(
+                text, target_sr = self.sample_rate,
+                speaking_rate=speed, return_as_int16=True)
+
+            # Check again before writing (audio_stream may have been closed)
+            if self.audio_stream and not self.interrupt_event.is_set():
+                self.audio_stream.write(audio_data)
+        except Exception as e:
+            # Ignore errors during interrupt (stream may be closed)
+            if not self.interrupt_event.is_set():
+                self._info(f"Error during speech: {e}")
+        finally:
+            self.is_speaking = False
 
     def _finish_processing(self):
         """Process any remaining text in the buffer."""
+        if self.interrupt_event.is_set():
+            return
+
         with self.lock:
             if self.text_buffer.strip():
                 self.sentence_queue.put(self.text_buffer)
                 self.text_buffer = ""
-        
-        # Wait for sentence queue to empty
-        if self.sentence_queue.qsize() > 0:
-            self._info(f"Waiting for {self.sentence_queue.qsize()} pending sentences...")
-            self.sentence_queue.join()
 
-    
+        # Wait for sentence queue to empty (with interrupt check)
+        while self.sentence_queue.qsize() > 0 and not self.interrupt_event.is_set():
+            self._info(f"Waiting for {self.sentence_queue.qsize()} pending sentences...")
+            time.sleep(0.1)
+
+        if self.interrupt_event.is_set():
+            return
+
         # Give a moment for audio to finish playing to ensure user input and agent aren't interfering
         time.sleep(0.5)
     
@@ -381,6 +422,7 @@ class LLmToAudio:
 
 
         # reset
+        self.interrupt_event.clear()
         self.assistant_printer.start()
         self.assistant_printer.show_idle('thinking...')
 
@@ -400,7 +442,7 @@ class LLmToAudio:
                 self.time_to_first_token = time.time() - self.time_llm_gen_started
                 self._info(f"\n>> Time to first token: {self.time_to_first_token:.2f} seconds")
 
-            if self.stop_event.is_set():
+            if self.stop_event.is_set() or self.interrupt_event.is_set():
                 break
 
             if chunk.choices and chunk.choices[0].delta.content:
@@ -412,6 +454,11 @@ class LLmToAudio:
 
                 self._process_text_chunk(text_chunk)            
                 text_chunks.append(text_chunk)
+
+        # Skip final processing if interrupted
+        if self.interrupt_event.is_set():
+            self._info(">> Interrupted, skipping finish processing")
+            return
 
         assistant_response = ''.join(text_chunks)
         self.messages.append({'role': 'assistant', 'content': assistant_response})
@@ -445,7 +492,7 @@ class AudioToText:
         self.disable_partials = disable_partials
         
         if not printer:
-            self.caption_printer = ColoredPrinter("User Input", "blue")
+            self.caption_printer = ColoredHandler("User Input", "blue")
         else:
             self.caption_printer = printer
 

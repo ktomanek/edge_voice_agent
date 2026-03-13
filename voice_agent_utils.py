@@ -34,7 +34,7 @@ def get_cli_argument_parser():
     parser.add_argument("--enable_keyboard_control", action="store_true", default=False, help="Enable keyboard control (space to mute/unmute, ESC to exit)")
     parser.add_argument("--verbose", action="store_true", help="Verbose status info")
     parser.add_argument("--single_turn", action="store_true", help="Disable conversation history for single-turn interactions.")
-    parser.add_argument("--display", choices=['colored', 'minimal', 'whisplay'], default="colored", help="Display type: 'colored' (default) for rich console output, 'minimal' for emoji status, 'whisplay' for Whisplay HAT display.")
+    parser.add_argument("--interaction_handler", choices=['colored', 'minimal', 'whisplay'], default="colored", help="Interaction handler: 'colored' (default) for rich console output, 'minimal' for emoji status, 'whisplay' for Whisplay HAT.")
 
     return parser
 

@@ -73,11 +73,11 @@
 
 ## CLI command line arguments
 
-### Display Options
+### Interaction Handlers
 
-The voice agent supports different display modes via the `--display` argument:
+The voice agent supports different interaction handlers via the `--interaction_handler` argument:
 
-| Display | Description |
+| Handler | Description |
 | ------- | ----------- |
 | `colored` | (default) Rich console output with colors, spinners, and styled text |
 | `minimal` | Simple emoji-based status display (👂 listening, 🗣️ speaking) |
@@ -85,12 +85,12 @@ The voice agent supports different display modes via the `--display` argument:
 
 Usage:
 ```bash
-python voice_agent_cli.py --display colored   # default
-python voice_agent_cli.py --display minimal   # minimal emoji output
-python voice_agent_cli.py --display whisplay  # Whisplay HAT display
+python voice_agent_cli.py --interaction_handler colored   # default
+python voice_agent_cli.py --interaction_handler minimal   # minimal emoji output
+python voice_agent_cli.py --interaction_handler whisplay  # Whisplay HAT
 ```
 
-#### Whisplay Display
+#### Whisplay Handler
 
 For the Whisplay HAT display on Raspberry Pi 5, you need to install system packages first (lgpio cannot be pip installed):
 

@@ -183,11 +183,13 @@ class LLmToAudio:
                     pass
             self.text_buffer = ""
 
-        # Stop current audio playback by closing and reopening stream
+        # Don't forcefully close audio stream - let it finish gracefully
+        # Just abort the current write by stopping (not closing)
         if self.audio_stream and self.audio_stream.active:
-            self.audio_stream.stop()
-            self.audio_stream.close()
-            self.audio_stream = None
+            try:
+                self.audio_stream.abort()  # Abort is safer than stop+close
+            except:
+                pass
 
         self.is_speaking = False
         self.is_processing = False
@@ -234,6 +236,10 @@ class LLmToAudio:
             )
             self.audio_stream.start()
             self._info("Audio stream started")
+        elif not self.audio_stream.active:
+            # Restart stopped stream (e.g., after interrupt)
+            self.audio_stream.start()
+            self._info("Audio stream restarted")
     
     def _start_sentence_processor(self):
         """Start a background thread to process sentences."""

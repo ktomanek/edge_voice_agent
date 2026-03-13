@@ -202,8 +202,11 @@ class WhisplayHandler(printers.CaptionPrinter):
 
         self._board = _get_whisplay_board()
         self._title = title or ""
-        # Determine if this is a "listening" (user input) or "speaking" (agent output) printer
+        # Determine if this is a "listening" (user input) or "speaking" (agent output) handler
         self._is_user_printer = "user" in self._title.lower() or "input" in self._title.lower()
+
+        # Show green LED on startup (booting)
+        self._board.set_rgb(0, 255, 0)
 
     def _convert_to_rgb565(self, img):
         """Convert PIL image to RGB565 pixel data."""
@@ -241,7 +244,7 @@ class WhisplayHandler(printers.CaptionPrinter):
         cy = height // 2 - 30  # Shift icon up to make room for text
 
         # Mic head (rounded rectangle)
-        color = (100, 200, 255)  # Light blue
+        color = (255, 100, 100)  # Red
         draw.rounded_rectangle([cx-25, cy-50, cx+25, cy+20], radius=20, fill=color)
         # Mic stand
         draw.arc([cx-40, cy, cx+40, cy+50], 0, 180, fill=color, width=6)
@@ -268,7 +271,7 @@ class WhisplayHandler(printers.CaptionPrinter):
         cx = width // 2
         cy = height // 2 - 30  # Shift icon up to make room for text
 
-        color = (100, 255, 100)  # Green
+        color = (100, 150, 255)  # Blue
 
         # Robot head
         draw.rounded_rectangle([cx-40, cy-40, cx+40, cy+30], radius=10, fill=color)
@@ -295,13 +298,13 @@ class WhisplayHandler(printers.CaptionPrinter):
     def start(self):
         """Show appropriate state based on handler role."""
         if self._is_user_printer:
-            # User input: listening state with mic icon and blue LED
-            self._board.set_rgb(0, 100, 255)  # Blue LED
+            # User input: recording state with mic icon and red LED
+            self._board.set_rgb(255, 0, 0)  # Red LED
             image_data = self._draw_mic_listening()
             self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
         else:
-            # Agent output: speaking state with robot icon and green LED
-            self._board.set_rgb(0, 255, 0)  # Green LED
+            # Agent output: speaking state with robot icon and blue LED
+            self._board.set_rgb(0, 100, 255)  # Blue LED
             image_data = self._draw_robot_speaking()
             self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
 
@@ -320,10 +323,43 @@ class WhisplayHandler(printers.CaptionPrinter):
             print(transcript)
 
     def show_idle(self, text=None):
-        """Show speaking state: robot icon with green LED."""
-        self._board.set_rgb(0, 255, 0)  # Green LED
+        """Show speaking state: robot icon with blue LED."""
+        self._board.set_rgb(0, 100, 255)  # Blue LED
         image_data = self._draw_robot_speaking()
         self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
+
+    def _draw_interrupted(self):
+        """Draw stop/interrupted symbol."""
+        width = self._board.LCD_WIDTH
+        height = self._board.LCD_HEIGHT
+        img = Image.new('RGB', (width, height), (0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        cx = width // 2
+        cy = height // 2 - 30
+
+        color = (255, 200, 0)  # Yellow/orange
+
+        # Draw stop hand / pause symbol
+        # Two vertical bars (pause icon)
+        draw.rectangle([cx-35, cy-40, cx-15, cy+40], fill=color)
+        draw.rectangle([cx+15, cy-40, cx+35, cy+40], fill=color)
+
+        # Draw text
+        font = self._load_font(18)
+        text = "interrupted"
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = bbox[2] - bbox[0]
+        draw.text(((width - text_width) // 2, height - 40), text, fill=color, font=font)
+
+        return self._convert_to_rgb565(img)
+
+    def show_interrupted(self):
+        """Show interrupted state briefly (yellow LED + pause symbol)."""
+        self._board.set_rgb(255, 200, 0)  # Yellow LED
+        image_data = self._draw_interrupted()
+        self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
+        time.sleep(1.0)  # Brief pause
 
     def on_button_press(self, callback):
         """Register a callback for when the Whisplay button is pressed."""

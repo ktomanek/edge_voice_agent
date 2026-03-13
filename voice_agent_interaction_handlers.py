@@ -271,7 +271,7 @@ class WhisplayHandler(printers.CaptionPrinter):
         cx = width // 2
         cy = height // 2 - 30  # Shift icon up to make room for text
 
-        color = (100, 150, 255)  # Blue
+        color = (255, 255, 255)  # White
 
         # Robot head
         draw.rounded_rectangle([cx-40, cy-40, cx+40, cy+30], radius=10, fill=color)
@@ -303,8 +303,8 @@ class WhisplayHandler(printers.CaptionPrinter):
             image_data = self._draw_mic_listening()
             self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
         else:
-            # Agent output: speaking state with robot icon and blue LED
-            self._board.set_rgb(0, 100, 255)  # Blue LED
+            # Agent output: speaking state with robot icon and white LED
+            self._board.set_rgb(255, 255, 255)  # White LED
             image_data = self._draw_robot_speaking()
             self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
 
@@ -323,8 +323,8 @@ class WhisplayHandler(printers.CaptionPrinter):
             print(transcript)
 
     def show_idle(self, text=None):
-        """Show speaking state: robot icon with blue LED."""
-        self._board.set_rgb(0, 100, 255)  # Blue LED
+        """Show speaking state: robot icon with white LED."""
+        self._board.set_rgb(255, 255, 255)  # White LED
         image_data = self._draw_robot_speaking()
         self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
 

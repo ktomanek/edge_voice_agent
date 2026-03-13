@@ -136,10 +136,11 @@ def main():
     if hasattr(user_interaction_handler, 'on_button_press'):
         def on_button_interrupt():
             print("\n[Interrupted]")
-            # Show interrupted state briefly (if handler supports it)
+            # First stop the audio
+            va.output_handler.interrupt()
+            # Then show interrupted state briefly (if handler supports it)
             if hasattr(user_interaction_handler, 'show_interrupted'):
                 user_interaction_handler.show_interrupted()
-            va.output_handler.interrupt()
             # Switch display back to listening mode
             user_interaction_handler.start()
         user_interaction_handler.on_button_press(on_button_interrupt)

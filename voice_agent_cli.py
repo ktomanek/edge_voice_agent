@@ -137,6 +137,8 @@ def main():
         def on_button_interrupt():
             print("\n[Interrupted]")
             va.output_handler.interrupt()
+            # Switch display back to listening mode
+            user_interaction_handler.start()
         user_interaction_handler.on_button_press(on_button_interrupt)
         if args.interaction_handler == 'whisplay':
             print("Press button to interrupt")

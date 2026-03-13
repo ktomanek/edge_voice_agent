@@ -205,21 +205,9 @@ class WhisplayHandler(printers.CaptionPrinter):
         # Determine if this is a "listening" (user input) or "speaking" (agent output) printer
         self._is_user_printer = "user" in self._title.lower() or "input" in self._title.lower()
 
-    def _draw_ear_icon(self):
-        """Draw a simple ear shape."""
-        width = self._board.LCD_WIDTH
-        height = self._board.LCD_HEIGHT
-        img = Image.new('RGB', (width, height), (0, 0, 0))
-        draw = ImageDraw.Draw(img)
-
-        # Draw a simple ear shape using arcs and lines
-        cx, cy = width // 2, height // 2
-        # Outer ear arc
-        draw.arc([cx-50, cy-70, cx+50, cy+70], 270, 90, fill=(255, 100, 100), width=8)
-        # Inner ear curve
-        draw.arc([cx-30, cy-40, cx+20, cy+40], 270, 90, fill=(255, 100, 100), width=6)
-
-        # Convert to RGB565
+    def _convert_to_rgb565(self, img):
+        """Convert PIL image to RGB565 pixel data."""
+        width, height = img.size
         pixel_data = []
         for py in range(height):
             for px in range(width):
@@ -229,43 +217,92 @@ class WhisplayHandler(printers.CaptionPrinter):
                 pixel_data.append(rgb565 & 0xFF)
         return pixel_data
 
-    def _draw_mic_icon(self):
-        """Draw a simple microphone shape."""
+    def _load_font(self, size=18):
+        """Load a font for text rendering."""
+        from PIL import ImageFont
+        for fpath in [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        ]:
+            try:
+                return ImageFont.truetype(fpath, size)
+            except:
+                pass
+        return ImageFont.load_default()
+
+    def _draw_mic_listening(self):
+        """Draw microphone icon with 'listening to user' text."""
         width = self._board.LCD_WIDTH
         height = self._board.LCD_HEIGHT
         img = Image.new('RGB', (width, height), (0, 0, 0))
         draw = ImageDraw.Draw(img)
 
-        cx, cy = width // 2, height // 2
+        cx = width // 2
+        cy = height // 2 - 30  # Shift icon up to make room for text
+
         # Mic head (rounded rectangle)
-        draw.rounded_rectangle([cx-25, cy-60, cx+25, cy+20], radius=20, fill=(100, 255, 100))
+        color = (100, 200, 255)  # Light blue
+        draw.rounded_rectangle([cx-25, cy-50, cx+25, cy+20], radius=20, fill=color)
         # Mic stand
-        draw.arc([cx-40, cy-10, cx+40, cy+50], 0, 180, fill=(100, 255, 100), width=6)
+        draw.arc([cx-40, cy, cx+40, cy+50], 0, 180, fill=color, width=6)
         # Mic base
-        draw.line([cx, cy+50, cx, cy+80], fill=(100, 255, 100), width=6)
-        draw.line([cx-30, cy+80, cx+30, cy+80], fill=(100, 255, 100), width=6)
+        draw.line([cx, cy+50, cx, cy+75], fill=color, width=6)
+        draw.line([cx-30, cy+75, cx+30, cy+75], fill=color, width=6)
 
-        # Convert to RGB565
-        pixel_data = []
-        for py in range(height):
-            for px in range(width):
-                r, g, b = img.getpixel((px, py))
-                rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-                pixel_data.append((rgb565 >> 8) & 0xFF)
-                pixel_data.append(rgb565 & 0xFF)
-        return pixel_data
+        # Draw text
+        font = self._load_font(18)
+        text = "listening to user"
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = bbox[2] - bbox[0]
+        draw.text(((width - text_width) // 2, height - 40), text, fill=color, font=font)
+
+        return self._convert_to_rgb565(img)
+
+    def _draw_robot_speaking(self):
+        """Draw robot icon with 'agent responding' text."""
+        width = self._board.LCD_WIDTH
+        height = self._board.LCD_HEIGHT
+        img = Image.new('RGB', (width, height), (0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        cx = width // 2
+        cy = height // 2 - 30  # Shift icon up to make room for text
+
+        color = (100, 255, 100)  # Green
+
+        # Robot head
+        draw.rounded_rectangle([cx-40, cy-40, cx+40, cy+30], radius=10, fill=color)
+        # Eyes
+        draw.ellipse([cx-25, cy-25, cx-10, cy-5], fill=(0, 0, 0))
+        draw.ellipse([cx+10, cy-25, cx+25, cy-5], fill=(0, 0, 0))
+        # Mouth
+        draw.rectangle([cx-20, cy+5, cx+20, cy+15], fill=(0, 0, 0))
+        # Antenna
+        draw.line([cx, cy-40, cx, cy-60], fill=color, width=4)
+        draw.ellipse([cx-8, cy-70, cx+8, cy-55], fill=color)
+        # Body hint
+        draw.rectangle([cx-30, cy+35, cx+30, cy+70], fill=color)
+
+        # Draw text
+        font = self._load_font(18)
+        text = "agent responding"
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = bbox[2] - bbox[0]
+        draw.text(((width - text_width) // 2, height - 40), text, fill=color, font=font)
+
+        return self._convert_to_rgb565(img)
 
     def start(self):
-        """Show appropriate state based on printer role."""
+        """Show appropriate state based on handler role."""
         if self._is_user_printer:
-            # User input: listening state with ear icon and red LED
-            self._board.set_rgb(255, 0, 0)  # Red LED
-            image_data = self._draw_ear_icon()
+            # User input: listening state with mic icon and blue LED
+            self._board.set_rgb(0, 100, 255)  # Blue LED
+            image_data = self._draw_mic_listening()
             self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
         else:
-            # Agent output: speaking state with mic icon and green LED
+            # Agent output: speaking state with robot icon and green LED
             self._board.set_rgb(0, 255, 0)  # Green LED
-            image_data = self._draw_mic_icon()
+            image_data = self._draw_robot_speaking()
             self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
 
     def stop(self):
@@ -283,9 +320,9 @@ class WhisplayHandler(printers.CaptionPrinter):
             print(transcript)
 
     def show_idle(self, text=None):
-        """Show speaking state: microphone icon with green LED."""
+        """Show speaking state: robot icon with green LED."""
         self._board.set_rgb(0, 255, 0)  # Green LED
-        image_data = self._draw_mic_icon()
+        image_data = self._draw_robot_speaking()
         self._board.draw_image(0, 0, self._board.LCD_WIDTH, self._board.LCD_HEIGHT, image_data)
 
     def on_button_press(self, callback):

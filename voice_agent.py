@@ -220,6 +220,13 @@ class LLmToAudio:
         Remove formatting symbols we don't want to be spoken.
         """
         text = text.replace('*', ' ')
+        # Remove weird newlines after punctuation (tiny LLMs often do this)
+        # But keep newlines after complete items (for lists)
+        text = re.sub(r',\s*\n', ', ', text)  # comma + newline -> comma + space
+        text = re.sub(r':\s*\n', ': ', text)  # colon + newline -> colon + space
+        text = re.sub(r';\s*\n', '; ', text)  # semicolon + newline -> semicolon + space
+        # Collapse multiple spaces into one
+        text = re.sub(r' +', ' ', text)
         # Remove emojis using regex (faster than emoji library)
         text = re.sub(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002702-\U000027B0\U000024C2-\U0001F251]+', '', text)
         return text
@@ -395,7 +402,7 @@ class LLmToAudio:
             if not self.sentence_queue.empty() and not self.stop_event.is_set() and not self.interrupt_event.is_set():
                 self._start_sentence_processor()
     
-    def _speak_sentence(self, text, speed=1.0, noise_scale=0.667, noise_w=0.8):
+    def _speak_sentence(self, text, speed=1.0, noise_scale=0.667, noise_w=0.8, wait_for_completion=False):
         """Synthesize and play a sentence with TTS model."""
         if not text.strip():
             return
@@ -417,6 +424,7 @@ class LLmToAudio:
                 return
 
             # Ensure stream is ready before writing
+            self._start_audio_stream()
             with self.lock:
                 if self.audio_stream is None or not self.audio_stream.active:
                     self._info("Audio stream not ready, skipping write")
@@ -425,6 +433,10 @@ class LLmToAudio:
             # Write audio (outside lock to avoid blocking)
             try:
                 self.audio_stream.write(audio_data)
+                # Optionally wait for audio to finish playing
+                if wait_for_completion:
+                    audio_duration = len(audio_data) / self.sample_rate
+                    time.sleep(audio_duration)
             except Exception as e:
                 if not self.interrupt_event.is_set():
                     self._info(f"Error writing audio: {e}")
@@ -821,8 +833,8 @@ class VoiceAgent():
                 continue
 
             if voice_agent_utils.DEFAULT_EXIT_COMMAND.lower() in user_input_transcribed.lower():
-                self.output_handler._speak_sentence(voice_agent_utils.DEFAULT_GOODBYE_MESSAGE)
-                time.sleep(0.5)
+                self.output_handler.assistant_printer.print(voice_agent_utils.DEFAULT_GOODBYE_MESSAGE, partial=False)
+                self.output_handler._speak_sentence(voice_agent_utils.DEFAULT_GOODBYE_MESSAGE, wait_for_completion=True)
                 break
             else:
                 if self.stop_event_set():

@@ -173,26 +173,37 @@ class LLmToAudio:
         """Interrupt current speech and return to listening."""
         self.interrupt_event.set()
 
-        # Clear sentence queue
+        # Print and clear sentence queue - show user what was going to be said
         with self.lock:
             while not self.sentence_queue.empty():
                 try:
-                    self.sentence_queue.get_nowait()
+                    sentence = self.sentence_queue.get_nowait()
+                    # Print the unspoken text so user can see it
+                    self.assistant_printer.print(sentence, partial=False)
                     self.sentence_queue.task_done()
                 except:
                     pass
+            # Print any remaining text in buffer
+            if self.text_buffer.strip():
+                self.assistant_printer.print(self.text_buffer, partial=False)
             self.text_buffer = ""
 
-        # Don't forcefully close audio stream - let it finish gracefully
-        # Just abort the current write by stopping (not closing)
-        if self.audio_stream and self.audio_stream.active:
-            try:
-                self.audio_stream.abort()  # Abort is safer than stop+close
-            except:
-                pass
+            # Abort audio stream to stop playback immediately
+            if self.audio_stream:
+                try:
+                    if self.audio_stream.active:
+                        self.audio_stream.abort()
+                        self._info("Audio stream aborted after interrupt")
+                except Exception as e:
+                    self._info(f"Error aborting audio stream: {e}")
+            # Note: Don't close/nullify the stream - it will be restarted on next speak
 
         self.is_speaking = False
         self.is_processing = False
+
+        # Wait for system audio buffer to fully drain to prevent mic picking up residual audio
+        # 0.5s should be enough for speakers to go silent
+        time.sleep(0.5)
 
 
     def shutdown(self):
@@ -226,20 +237,39 @@ class LLmToAudio:
     
     def _start_audio_stream(self):
         """Initialize and start the audio output stream."""
-
-        if self.audio_stream is None:
-            self.audio_stream = sd.OutputStream(
-                samplerate=self.sample_rate,
-                blocksize=self.audio_buffer_size,
-                channels=1,
-                dtype='int16'
-            )
-            self.audio_stream.start()
-            self._info("Audio stream started")
-        elif not self.audio_stream.active:
-            # Restart stopped stream (e.g., after interrupt)
-            self.audio_stream.start()
-            self._info("Audio stream restarted")
+        with self.lock:
+            try:
+                if self.audio_stream is None:
+                    self.audio_stream = sd.OutputStream(
+                        samplerate=self.sample_rate,
+                        blocksize=self.audio_buffer_size,
+                        channels=1,
+                        dtype='int16'
+                    )
+                    self.audio_stream.start()
+                    self._info("Audio stream created and started")
+                elif not self.audio_stream.active:
+                    try:
+                        # Restart stopped stream
+                        self.audio_stream.start()
+                        self._info("Audio stream restarted")
+                    except sd.PortAudioError:
+                        # Stream is in bad state, recreate it
+                        self._info("Stream in bad state, recreating...")
+                        try:
+                            self.audio_stream.close()
+                        except:
+                            pass
+                        self.audio_stream = sd.OutputStream(
+                            samplerate=self.sample_rate,
+                            blocksize=self.audio_buffer_size,
+                            channels=1,
+                            dtype='int16'
+                        )
+                        self.audio_stream.start()
+                        self._info("Audio stream recreated")
+            except Exception as e:
+                self._info(f"Error with audio stream: {e}")
     
     def _start_sentence_processor(self):
         """Start a background thread to process sentences."""
@@ -260,8 +290,8 @@ class LLmToAudio:
             return self.max_words_to_speak
 
     def _has_natural_break_point(self, text):
-        """Check if text has natural break points like punctuation marks followed by space."""
-        break_patterns = [', ', '; ', ': ', '! ', '? ', '. ', ' - ', ' – ', ' — ']
+        """Check if text has natural break points like punctuation marks followed by space or newlines."""
+        break_patterns = ['\n', ', ', '; ', ': ', '! ', '? ', '. ', ' - ', ' – ', ' — ']
         return any(pattern in text for pattern in break_patterns)
 
     def _process_text_chunk(self, text_chunk):
@@ -291,6 +321,7 @@ class LLmToAudio:
                     for sentence in complete_sentences:
                         if sentence.strip():
                             self.sentence_queue.put(sentence)
+                            self.assistant_printer.print(sentence, partial=False)
                             self._info(f"Queued full sentence: {sentence}")
                             if not self.first_speech_fragment_finalized:
                                 self.time_to_first_speech_fragment = time.time() - self.time_llm_gen_started 
@@ -301,6 +332,7 @@ class LLmToAudio:
                       (self._has_natural_break_point(self.text_buffer) and len(self.text_buffer_words) >= 1)):
                     # Look for natural break points
                     break_points = [
+                        self.text_buffer.rfind('\n'),  # newlines are strong break points
                         self.text_buffer.rfind(', '),
                         self.text_buffer.rfind(' - '),
                         self.text_buffer.rfind(': '),
@@ -317,6 +349,7 @@ class LLmToAudio:
                     fragment = self.text_buffer[:break_point+1]
                     self.text_buffer = self.text_buffer[break_point+1:]
                     self.sentence_queue.put(fragment)
+                    self.assistant_printer.print(fragment, partial=False)
                     self._info(f"Queued fragment: {fragment}")
                     if not self.first_speech_fragment_finalized:
                         self.time_to_first_speech_fragment = time.time() - self.time_llm_gen_started 
@@ -379,11 +412,23 @@ class LLmToAudio:
                 text, target_sr = self.sample_rate,
                 speaking_rate=speed, return_as_int16=True)
 
-            # Check again before writing (audio_stream may have been closed)
-            if self.audio_stream and not self.interrupt_event.is_set():
+            # Check again before writing
+            if self.interrupt_event.is_set():
+                return
+
+            # Ensure stream is ready before writing
+            with self.lock:
+                if self.audio_stream is None or not self.audio_stream.active:
+                    self._info("Audio stream not ready, skipping write")
+                    return
+
+            # Write audio (outside lock to avoid blocking)
+            try:
                 self.audio_stream.write(audio_data)
+            except Exception as e:
+                if not self.interrupt_event.is_set():
+                    self._info(f"Error writing audio: {e}")
         except Exception as e:
-            # Ignore errors during interrupt (stream may be closed)
             if not self.interrupt_event.is_set():
                 self._info(f"Error during speech: {e}")
         finally:
@@ -397,7 +442,12 @@ class LLmToAudio:
         with self.lock:
             if self.text_buffer.strip():
                 self.sentence_queue.put(self.text_buffer)
+                self.assistant_printer.print(self.text_buffer, partial=False)
                 self.text_buffer = ""
+
+        # Ensure processor is running if there's something in the queue
+        if not self.sentence_queue.empty() and not self.is_processing:
+            self._start_sentence_processor()
 
         # Wait for sentence queue to empty (with interrupt check)
         while self.sentence_queue.qsize() > 0 and not self.interrupt_event.is_set():
@@ -407,8 +457,26 @@ class LLmToAudio:
         if self.interrupt_event.is_set():
             return
 
-        # Give a moment for audio to finish playing to ensure user input and agent aren't interfering
-        time.sleep(0.5)
+        # Wait for is_speaking to become False (audio write finished)
+        while self.is_speaking and not self.interrupt_event.is_set():
+            time.sleep(0.05)
+
+        # Wait for sentence processor to finish
+        while self.is_processing and not self.interrupt_event.is_set():
+            time.sleep(0.05)
+
+        # Stop (but don't close) the audio stream - it will be reused
+        with self.lock:
+            if self.audio_stream:
+                try:
+                    if self.audio_stream.active:
+                        self.audio_stream.stop()
+                        self._info("Audio output stream stopped")
+                except Exception as e:
+                    self._info(f"Error stopping audio stream: {e}")
+
+        # Give a moment for system audio buffer to fully drain
+        time.sleep(0.3)
     
 
     def process_prompt(self, user_prompt):
@@ -427,8 +495,28 @@ class LLmToAudio:
             self._info(f">> Sending prompt to {self.llm_server_url}: {pretty_json}")
 
 
-        # reset
+        # Wait for any previous processor to finish (max 1 second)
+        wait_count = 0
+        while self.is_processing and wait_count < 20:
+            time.sleep(0.05)
+            wait_count += 1
+        if self.is_processing:
+            self._info("Warning: previous processor still running, forcing reset")
+
+        # reset all state for new turn
         self.interrupt_event.clear()
+        self.is_speaking = False
+        self.is_processing = False
+        self.text_buffer = ""
+
+        # Clear any leftover sentences from previous turn
+        with self.lock:
+            while not self.sentence_queue.empty():
+                try:
+                    self.sentence_queue.get_nowait()
+                except:
+                    pass
+
         self.assistant_printer.start()
         self.assistant_printer.show_idle('thinking...')
 
@@ -468,9 +556,6 @@ class LLmToAudio:
 
         assistant_response = ''.join(text_chunks)
         self.messages.append({'role': 'assistant', 'content': assistant_response})
-
-        # print final assistant message
-        self.assistant_printer.print(assistant_response, partial=False)
 
         # Process any remaining text
         self._finish_processing()
@@ -625,6 +710,24 @@ class AudioToText:
         With callback mode, audio is captured in background thread automatically.
         This method just monitors for end-of-utterance.
         """
+        # Small delay to ensure any system audio has finished
+        time.sleep(0.1)
+
+        # Clear any residual audio in the queue (e.g., from agent speech picked up by mic)
+        cleared_count = 0
+        try:
+            while True:
+                self.audio_queue.get_nowait()
+                cleared_count += 1
+        except queue.Empty:
+            pass
+        if cleared_count > 0:
+            self._info(f"Cleared {cleared_count} audio chunks from queue")
+
+        # Reset transcription state to avoid processing old audio
+        self.transcription_handler.reset()
+        self.vad.reset_states()
+
         self.caption_printer.start()
 
         try:

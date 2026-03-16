@@ -82,13 +82,8 @@ The voice agent supports different interaction handlers via the `--interaction_h
 | `colored` | (default) Rich console output with colors, spinners, and styled text |
 | `minimal` | Simple emoji-based status display (👂 listening, 🗣️ speaking) |
 | `whisplay` | [Whisplay HAT](https://github.com/ktomanek/Whisplay_RPI5) display with ear/mic icons and colored LEDs |
+| `display_leds_interrupt` | Waveshare 1.69" LCD + external LEDs + ReSpeaker button for interrupt |
 
-Usage:
-```bash
-python voice_agent_cli.py --interaction_handler colored   # default
-python voice_agent_cli.py --interaction_handler minimal   # minimal emoji output
-python voice_agent_cli.py --interaction_handler whisplay  # Whisplay HAT
-```
 
 #### Whisplay Handler
 
@@ -112,6 +107,31 @@ The Whisplay display shows:
 - Red LED + ear icon when listening
 - Green LED + microphone icon when speaking
 - Press the button to exit
+
+#### Display + LEDs + Interrupt Button Handler
+
+For a custom setup with Waveshare 1.69" LCD display, external LEDs, and ReSpeaker 2-Mic HAT (for audio and button):
+
+```bash
+# Install system packages
+sudo apt install python3-lgpio python3-gpiozero python3-spidev python3-pil
+
+# Create venv with access to system packages
+python3 -m venv --system-site-packages venv
+source venv/bin/activate
+```
+
+Hardware connections:
+- **Display**: Waveshare 1.69" LCD via SPI (GPIO 8, 10, 11, 12, 25, 27)
+- **LEDs**: External red (GPIO 5), yellow (GPIO 6), green (GPIO 13)
+- **Button**: ReSpeaker onboard button (GPIO 17)
+- **Audio**: ReSpeaker 2-Mic HAT via I2S (GPIO 18-21)
+
+The display shows:
+- Red LED + mic icon when listening to user
+- Green LED + robot icon when agent is speaking
+- Yellow LED + pause icon when interrupted
+- Press the ReSpeaker button to interrupt the agent
 
 ### End of utterance detection
 

@@ -141,10 +141,12 @@ def main():
             # Then show interrupted state briefly (if handler supports it)
             if hasattr(user_interaction_handler, 'show_interrupted'):
                 user_interaction_handler.show_interrupted()
+                # Brief pause to show interrupted state and let audio fully stop
+                time.sleep(0.3)
             # Switch display back to listening mode
             user_interaction_handler.start()
         user_interaction_handler.on_button_press(on_button_interrupt)
-        if args.interaction_handler == 'whisplay':
+        if args.interaction_handler in ('whisplay', 'display_leds_interrupt'):
             print("Press button to interrupt")
         else:
             print("Press SPACE to interrupt")

@@ -43,7 +43,7 @@
 * download models (check scripts if you want other models):
    * piper tts models: ```sh download_piper_models.sh```
    * llm models: ```sh download_llm.sh```
-   * moonshine models: ```python download_moonshine_models.py```
+   * moonshine models: ```python download_moonshine_v1_models.py```
    * silero vad models: ```python download_silero_vad_model.py```
 
 #### Llama.cpp

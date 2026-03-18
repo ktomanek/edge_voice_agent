@@ -21,8 +21,8 @@ def get_cli_argument_parser():
     parser = argparse.ArgumentParser(description="On Device Voice Agen")
     parser.add_argument("--llm_server_url", default=DEFAULT_LLM_SERVER_URL, help="Url where LLM is served using OpenAI-compatible API format.")
     parser.add_argument("--tts_engine", choices=['piper', 'kokoro'], default="piper", help="which tts engine to use; piper is much faster than kokoro.")
-    parser.add_argument("--asr_model_name", default="moonshine_tiny", help="which asr model to run.")
-    parser.add_argument("--asr_model_path", default="models/moonshine_tiny", help="Path to the ASR model directory (use empty string to unset for models that don't need it)")
+    parser.add_argument("--asr_model_name", default="moonshine_v1_base", help="which asr model to run.")
+    parser.add_argument("--asr_model_path", default="models/moonshine_v1_base", help="Path to the ASR model directory (use empty string to unset for models that don't need it)")
     parser.add_argument("--disable_partials", action="store_true", default=True, help="Disable partial transcription results (default: True)")
     parser.add_argument("--enable_partials", dest="disable_partials", action="store_false", help="Enable partial transcription results")
     parser.add_argument("--language", default=DEFAULT_LANGUAGE, help="language to use")
@@ -37,7 +37,7 @@ def get_cli_argument_parser():
     parser.add_argument("--enable_keyboard_control", action="store_true", default=False, help="Enable keyboard control (space to mute/unmute, ESC to exit)")
     parser.add_argument("--verbose", action="store_true", help="Verbose status info")
     parser.add_argument("--single_turn", action="store_true", help="Disable conversation history for single-turn interactions.")
-    parser.add_argument("--interaction_handler", choices=['colored', 'minimal', 'whisplay', 'display_leds_interrupt'], default="colored", help="Interaction handler: 'colored' (default) for rich console output, 'minimal' for emoji status, 'whisplay' for Whisplay HAT, 'display_leds_interrupt' for Waveshare display + external LEDs + ReSpeaker button.")
+    parser.add_argument("--interaction_handler", choices=['colored', 'colored_interrupt', 'minimal', 'whisplay', 'display_leds_interrupt'], default="colored", help="Interaction handler: 'colored' (default) for rich console output, 'colored_interrupt' for colored output with GPIO interrupt button, 'minimal' for emoji status, 'whisplay' for Whisplay HAT, 'display_leds_interrupt' for Waveshare display + external LEDs + ReSpeaker button.")
 
     return parser
 

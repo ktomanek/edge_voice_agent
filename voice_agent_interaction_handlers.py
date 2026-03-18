@@ -48,7 +48,7 @@ def _start_keyboard_listener(callback, stop_event):
 
 class ColoredHandler(printers.CaptionPrinter):
 
-    def __init__(self, title, title_color='blue'):
+    def __init__(self, title, title_color='blue', **kwargs):
         # https://rich.readthedocs.io/en/stable/style.html
         from rich.console import Console
         from rich.theme import Theme
@@ -126,6 +126,51 @@ class ColoredHandler(printers.CaptionPrinter):
         """Clean up resources."""
         if hasattr(self, '_stop_event'):
             self._stop_event.set()
+
+
+class ColoredHandlerWithInterruptButton(ColoredHandler):
+    """ColoredHandler extended with GPIO-based interrupt button (and space bar fallback).
+
+    Uses GPIO 16 for the interrupt button (no conflict with ReSpeaker HAT or display pins).
+    On non-Pi systems, falls back to space bar only.
+    """
+
+    INTERRUPT_BUTTON_PIN = 16  # GPIO 16 - free pin, no conflict with display/LEDs/ReSpeaker
+
+    def __init__(self, title, title_color='blue', **kwargs):
+        super().__init__(title, title_color, **kwargs)
+        self._gpio_button = None
+        self._button_callback = None
+
+        # Try to initialize GPIO button if available
+        if GPIO_AVAILABLE:
+            try:
+                from gpiozero import Button
+                self._gpio_button = Button(self.INTERRUPT_BUTTON_PIN)
+            except Exception as e:
+                print(f"Warning: Could not initialize GPIO button on pin {self.INTERRUPT_BUTTON_PIN}: {e}")
+                self._gpio_button = None
+
+    def on_button_press(self, callback):
+        """Register a callback for both space bar and GPIO button press."""
+        self._button_callback = callback
+
+        # Set up space bar listener (from parent)
+        super().on_button_press(callback)
+
+        # Set up GPIO button if available
+        if self._gpio_button is not None:
+            self._gpio_button.when_pressed = callback
+
+    def cleanup(self):
+        """Clean up resources including GPIO button."""
+        super().cleanup()
+        if self._gpio_button is not None:
+            try:
+                self._gpio_button.close()
+            except:
+                pass
+            self._gpio_button = None
 
 
 class MinimalHandler(printers.CaptionPrinter):
@@ -718,6 +763,7 @@ class DisplayWithLEDandInterruptButton(printers.CaptionPrinter):
 # Registry of available interaction handlers
 HANDLER_TYPES = {
     'colored': ColoredHandler,
+    'colored_interrupt': ColoredHandlerWithInterruptButton,
     'minimal': MinimalHandler,
     'whisplay': WhisplayHandler,
     'display_leds_interrupt': DisplayWithLEDandInterruptButton,

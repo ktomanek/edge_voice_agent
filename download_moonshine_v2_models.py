@@ -8,7 +8,8 @@ from pathlib import Path
 # Set cache directory to /tmp folder before importing
 tmp_dir = Path(tempfile.gettempdir()) / "moonshine_download"
 tmp_dir.mkdir(parents=True, exist_ok=True)
-models_dir = Path(__file__).parent / "models"
+# Download to project root models/ directory
+models_dir = Path("models")
 os.environ["MOONSHINE_VOICE_CACHE"] = str(tmp_dir)
 
 from moonshine_voice.download import get_model_for_language, ModelArch
@@ -19,8 +20,8 @@ if __name__ == "__main__":
     print(f"Temporary cache directory: {tmp_dir}")
 
     models_to_download = [
-        (ModelArch.TINY, "moonshine_tiny"),
-        (ModelArch.BASE, "moonshine_base"),
+        (ModelArch.TINY, "moonshine_v2_tiny"),
+        (ModelArch.BASE, "moonshine_v2_base"),
     ]
 
     for arch, target_dir_name in models_to_download:

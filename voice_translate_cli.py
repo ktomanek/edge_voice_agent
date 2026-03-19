@@ -23,6 +23,7 @@
 #
 # Exit: Say "goodbye" (voice command)
 
+import threading
 import time
 start_time = time.time()
 print("Loading Voice Agent...")
@@ -103,7 +104,7 @@ def main():
     va.init_LLmToAudioOutput(
         llm_server_url=args.llm_server_url,
         system_prompt="",
-        start_message="Ready to translate! Set your output language, please speak in English.",
+        start_message="",#Ready to translate! Set your output language, please speak in English.",
         tts_engine=args.tts_engine,
         speaking_rate=args.speaking_rate,
         tts_model_path=args.tts_model_path,
@@ -168,9 +169,9 @@ def main():
     # -- rotary switch integration --
     if GPIO_AVAILABLE:
         # Delay to avoid queuing languages
-        language_switch_timer = None
+        switch_state = {'timer': None}
         SETTLE_DELAY = 0.3  # Wait before loading
-        
+
         db_time = 0.05
         switches = {
             1: Button(0, pull_up=True, bounce_time=db_time),
@@ -180,15 +181,14 @@ def main():
         }
 
         def check_position():
-            global language_switch_timer
             for pos, btn in switches.items():
                 if btn.is_pressed:
                     lang_name = GPIO_LANGUAGE_MAP.get(pos)
-                    if language_switch_timer is not None:
-                        language_switch_timer.cancel()
+                    if switch_state['timer'] is not None:
+                        switch_state['timer'].cancel()
                     if lang_name and lang_name in LANGUAGE_CONFIGS:
-                        language_switch_timer = threading.Timer(SETTLE_DELAY, va.change_language, args=[LANGUAGE_CONFIGS[lang_name]])
-                        language_switch_timer.start()
+                        switch_state['timer'] = threading.Timer(SETTLE_DELAY, va.change_language, args=[LANGUAGE_CONFIGS[lang_name]])
+                        switch_state['timer'].start()
                     return
 
         # Assign callbacks (gpiozero runs these in a background thread automatically)

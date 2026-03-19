@@ -9,12 +9,28 @@ mkdir -p models/piper
 
 mkdir -p models/piper
 
+# English
 wget https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/low/en_US-lessac-low.onnx.json -O models/piper/en_US-lessac-low.onnx.json
 wget https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/low/en_US-lessac-low.onnx -O models/piper/en_US-lessac-low.onnx
 
-# TODO use instead python3 -m piper.download_voices en_US-lessac-medium
+# German
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/low/de_DE-thorsten-low.onnx -O models/piper/de_DE-thorsten-low.onnx
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/low/de_DE-thorsten-low.onnx.json -O models/piper/de_DE-thorsten-low.onnx.json
 
-# wget https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json
-# wget https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx
-# wget https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/high/en_US-lessac-high.onnx.json
-# wget https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/high/en_US-lessac-high.onnx
+#wget https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/eva_k/x_low/de_DE-eva_k-x_low.onnx -O models/piper/de_DE-eva_k-x_low.onnx
+#wget https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/eva_k/x_low/de_DE-eva_k-x_low.onnx.json -O models/piper/de_DE-eva_k-x_low.onnx.json
+
+# Spanish
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/carlfm/x_low/es_ES-carlfm-x_low.onnx -O models/piper/es_ES-carlfm-x_low.onnx
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/carlfm/x_low/es_ES-carlfm-x_low.onnx.json -O models/piper/es_ES-carlfm-x_low.onnx.json
+
+# Arabic
+models/piper/ar_JO-kareem-low.onnx
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/ar/ar_JO/kareem/low/ar_JO-kareem-low.onnx -O models/piper/ar_JO-kareem-low.onnx
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/ar/ar_JO/kareem/low/ar_JO-kareem-low.onnx.json -O models/piper/ar_JO-kareem-low.onnx.json
+
+# French
+models/piper/fr_FR-siwis-low.onnx
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/low/fr_FR-siwis-low.onnx -O models/piper/fr_FR-siwis-low.onnx
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/low/fr_FR-siwis-low.onnx.json -O models/piper/fr_FR-siwis-low.onnx.json
+

@@ -54,7 +54,7 @@ LANGUAGE_CONFIGS = {
         "lang": "Spanish",
         "tts_model": "models/piper/es_ES-carlfm-x_low.onnx",
         "prompt": "Translate the following into Spanish. Your response should only contain a single translation (no context, commentary, or explanation):",
-        "ready_message": "Soy listo!"
+        "ready_message": "Estoy listo!"
     },
     'arabic': {
         "lang": "Arabic",
@@ -147,6 +147,10 @@ def main():
     
     # -- rotary switch integration --
     if GPIO_AVAILABLE:
+        # Delay to avoid queuing languages
+        language_switch_timer = None
+        SETTLE_DELAY = 0.3  # Wait before loading
+        
         db_time = 0.05
         switches = {
             1: Button(0, pull_up=True, bounce_time=db_time),
@@ -156,11 +160,15 @@ def main():
         }
 
         def check_position():
+            global language_switch_timer
             for pos, btn in switches.items():
                 if btn.is_pressed:
                     lang_name = GPIO_LANGUAGE_MAP.get(pos)
+                    if language_switch_timer is not None:
+                        language_switch_timer.cancel()
                     if lang_name and lang_name in LANGUAGE_CONFIGS:
-                        va.change_language(LANGUAGE_CONFIGS[lang_name])
+                        language_switch_timer = threading.Timer(SETTLE_DELAY, va.change_language, args=[LANGUAGE_CONFIGS[lang_name]])
+                        language_switch_timer.start()
                     return
 
         # Assign callbacks (gpiozero runs these in a background thread automatically)

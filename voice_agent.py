@@ -125,6 +125,12 @@ class LLmToAudio:
 
         self.audio_stream = None
 
+        # Text processing
+        self.text_buffer = ""
+        self.sentence_queue = queue.Queue()
+        self.is_processing = False
+        self.is_speaking = False
+
         # Thread handlers
         self.stop_event = threading.Event()
         self.interrupt_event = threading.Event()
@@ -536,10 +542,16 @@ class LLmToAudio:
         self.time_llm_gen_started = time.time()
         self.first_chunk_emitted = False
 
+        # For single_turn mode, disable prompt caching to avoid stale context
+        extra_params = {}
+        if self.single_turn:
+            extra_params = {"cache_prompt": False, "n_keep": 0}
+
         llm_response_stream = self.llm_client.chat.completions.create(
             model=voice_agent_utils.DEFAULT_LLM_SERVER_MODEL,
             messages=self.messages,
-            stream=True
+            stream=True,
+            **extra_params
         )
         text_chunks = []
         for chunk in llm_response_stream:

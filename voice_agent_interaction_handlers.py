@@ -170,13 +170,9 @@ class ColoredHandler(printers.CaptionPrinter):
 
 
 class ColoredHandlerWithInterruptButton(ColoredHandler):
-    """ColoredHandler extended with GPIO-based interrupt button (and ENTER key fallback).
+    """ColoredHandler extended with GPIO-based interrupt button (and ENTER key fallback)."""
 
-    Uses GPIO 16 for the interrupt button (no conflict with ReSpeaker HAT or display pins).
-    On non-Pi systems, falls back to ENTER key only.
-    """
-
-    INTERRUPT_BUTTON_PIN = 16  # GPIO 16 - free pin, no conflict with display/LEDs/ReSpeaker
+    INTERRUPT_BUTTON_PIN = 22  # GPIO 22 - free pin, no conflict with ReSpeaker HAT or display
 
     def __init__(self, title, title_color='blue', is_agent=False, **kwargs):
         super().__init__(title, title_color, **kwargs)

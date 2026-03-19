@@ -54,7 +54,7 @@ LANGUAGE_CONFIGS = {
         "lang": "Spanish",
         "tts_model": "models/piper/es_ES-carlfm-x_low.onnx",
         "prompt": "Translate the following into Spanish. Your response should only contain a single translation (no context, commentary, or explanation):",
-        "ready_message": "Soy listo!"
+        "ready_message": "Estoy listo!"
     },
     'arabic': {
         "lang": "Arabic",
@@ -130,6 +130,26 @@ def main():
 
     # full start time to ready
     print(f">> --  Voice Agent ready in {time.time()-start_time:.2f} seconds -- <<")
+
+    # Define interrupt callback
+    interrupt_count = {'n': 0}
+    def on_output_interrupt():
+        """Interrupt agent's speech output."""
+        interrupt_count['n'] += 1
+        if args.verbose:
+            print(f"\n[Interrupted #{interrupt_count['n']}] at {time.time():.2f}")
+        va.output_handler.interrupt()
+        if hasattr(user_interaction_handler, 'show_interrupted'):
+            user_interaction_handler.show_interrupted()
+            time.sleep(0.3)
+        user_interaction_handler.start()
+        if args.verbose:
+            print(f"[Interrupt #{interrupt_count['n']} done]")
+
+    # Setup GPIO interrupt button if handler has one
+    if hasattr(agent_interaction_handler, '_gpio_button') and agent_interaction_handler._gpio_button is not None:
+        agent_interaction_handler._gpio_button.when_pressed = on_output_interrupt
+        print("GPIO interrupt button enabled")
 
     # Setup keyboard controls via the interaction handler
     if hasattr(user_interaction_handler, 'setup_keyboard_controls'):

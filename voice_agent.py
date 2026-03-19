@@ -857,6 +857,10 @@ class VoiceAgent():
     def __init__(self):
         pass
 
+    def _info(self, text):
+        """Print info message."""
+        print(f"[VoiceAgent] {text}")
+
     def init_AudioToText(self, **audioToTextKwargs):
         t1 = time.time()
         self.input_handler = AudioToText(**audioToTextKwargs)

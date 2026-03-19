@@ -97,13 +97,13 @@ def main():
     va = VoiceAgent()
 
     # Create interaction handlers
-    user_interaction_handler = get_handler(args.interaction_handler, "User Input", "blue")
-    agent_interaction_handler = get_handler(args.interaction_handler, "Agent Output", "magenta")
+    user_interaction_handler = get_handler(args.interaction_handler, "User Input", "blue", is_agent=False)
+    agent_interaction_handler = get_handler(args.interaction_handler, "Agent Output", "magenta", is_agent=True)
 
     va.init_LLmToAudioOutput(
         llm_server_url=args.llm_server_url,
         system_prompt="",
-        start_message="Ready to translate! Chose your output language, please speak in English.",
+        start_message="Ready to translate! Set your output language, please speak in English.",
         tts_engine=args.tts_engine,
         speaking_rate=args.speaking_rate,
         tts_model_path=args.tts_model_path,

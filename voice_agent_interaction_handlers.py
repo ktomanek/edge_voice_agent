@@ -57,13 +57,11 @@ def _start_keyboard_listener(key_callbacks, stop_event):
                     # Call the callback if registered
                     if key_name in key_callbacks:
                         key_callbacks[key_name]()
-        except:
-            pass
+        except Exception as e:
+            print(f"Keyboard listener error: {e}")
+            raise e
         finally:
-            try:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-            except:
-                pass
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
     thread = threading.Thread(target=listener, daemon=True)
     thread.start()
@@ -180,13 +178,13 @@ class ColoredHandlerWithInterruptButton(ColoredHandler):
 
     INTERRUPT_BUTTON_PIN = 16  # GPIO 16 - free pin, no conflict with display/LEDs/ReSpeaker
 
-    def __init__(self, title, title_color='blue', **kwargs):
+    def __init__(self, title, title_color='blue', is_agent=False, **kwargs):
         super().__init__(title, title_color, **kwargs)
         self._gpio_button = None
         self._button_callback = None
 
-        # Try to initialize GPIO button if available
-        if GPIO_AVAILABLE:
+        # Only initialize GPIO button for agent handler to avoid pin conflicts
+        if is_agent and GPIO_AVAILABLE:
             try:
                 from gpiozero import Button
                 self._gpio_button = Button(self.INTERRUPT_BUTTON_PIN)
@@ -219,7 +217,7 @@ class ColoredHandlerWithInterruptButton(ColoredHandler):
 class MinimalHandler(printers.CaptionPrinter):
     """Minimal handler with no colors, just shows emoji for listening/speaking status."""
 
-    def __init__(self, title=None, title_color=None):
+    def __init__(self, title=None, title_color=None, **kwargs):
         # title and title_color are accepted but ignored for API compatibility
         self._is_listening = False
 
@@ -298,14 +296,15 @@ def _get_whisplay_board():
 class WhisplayHandler(printers.CaptionPrinter):
     """Whisplay HAT interaction handler showing ear/mic icons with colored LEDs."""
 
-    def __init__(self, title=None, title_color=None):
+    def __init__(self, title=None, title_color=None, is_agent=False, **kwargs):
         if not WHISPLAY_AVAILABLE:
             raise ImportError("Whisplay library not available. Install with: pip install git+https://github.com/ktomanek/Whisplay_RPI5.git")
 
         self._board = _get_whisplay_board()
         self._title = title or ""
+        self._is_agent = is_agent
         # Determine if this is a "listening" (user input) or "speaking" (agent output) handler
-        self._is_user_printer = "user" in self._title.lower() or "input" in self._title.lower()
+        self._is_user_printer = not is_agent
 
         # Show green LED on startup (booting)
         self._board.set_rgb(0, 255, 0)
@@ -648,13 +647,14 @@ def _get_gpio_board():
 class DisplayWithLEDandInterruptButton(printers.CaptionPrinter):
     """Interaction handler with Waveshare display, external LEDs, and ReSpeaker button."""
 
-    def __init__(self, title=None, title_color=None):
+    def __init__(self, title=None, title_color=None, is_agent=False, **kwargs):
         if not GPIO_AVAILABLE:
             raise ImportError("GPIO libraries not available. Install: pip install spidev gpiozero pillow")
 
         self._board = _get_gpio_board()
         self._title = title or ""
-        self._is_user_printer = "user" in self._title.lower() or "input" in self._title.lower()
+        self._is_agent = is_agent
+        self._is_user_printer = not is_agent
 
         # Show green LED on startup
         self._board.set_rgb(0, 255, 0)
@@ -818,12 +818,20 @@ HANDLER_TYPES = {
 }
 
 
-def get_handler(handler_type, title, title_color='blue'):
-    """Factory function to create an interaction handler instance."""
+def get_handler(handler_type, title, title_color='blue', is_agent=False):
+    """Factory function to create an interaction handler instance.
+
+    Args:
+        handler_type: One of the registered handler types
+        title: Display title for the handler
+        title_color: Color for the title
+        is_agent: If True, this handler is for agent output. Some handlers
+                  (e.g., colored_interrupt) only enable GPIO button for user handler.
+    """
     if handler_type not in HANDLER_TYPES:
         raise ValueError(f"Unknown handler type: {handler_type}. Available: {list(HANDLER_TYPES.keys())}")
     if handler_type == 'whisplay' and not WHISPLAY_AVAILABLE:
         raise ImportError("Whisplay library not available")
     if handler_type == 'display_leds_interrupt' and not GPIO_AVAILABLE:
         raise ImportError("GPIO libraries not available. Install: pip install spidev gpiozero pillow")
-    return HANDLER_TYPES[handler_type](title, title_color)
+    return HANDLER_TYPES[handler_type](title, title_color, is_agent=is_agent)

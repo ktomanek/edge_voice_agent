@@ -42,8 +42,8 @@ def main():
     va = VoiceAgent()
 
     # Create interaction handlers
-    user_interaction_handler = get_handler(args.interaction_handler, "User Input", "blue")
-    agent_interaction_handler = get_handler(args.interaction_handler, "Agent Output", "magenta")
+    user_interaction_handler = get_handler(args.interaction_handler, "User Input", "blue", is_agent=False)
+    agent_interaction_handler = get_handler(args.interaction_handler, "Agent Output", "magenta", is_agent=True)
 
     va.init_LLmToAudioOutput(
         llm_server_url=args.llm_server_url,
@@ -76,19 +76,32 @@ def main():
     # full start time to ready
     print(f">> --  Voice Agent ready in {time.time()-start_time:.2f} seconds -- <<")
 
+    # Define interrupt callback (used by both GPIO button and keyboard)
+    last_interrupt = {'time': 0}
+    def on_output_interrupt():
+        """Interrupt agent's speech output."""
+        # Debounce: ignore if called within 1 second of last interrupt
+        now = time.time()
+        if now - last_interrupt['time'] < 1.0:
+            return
+        last_interrupt['time'] = now
+
+        print("\n[Interrupted]")
+        va.output_handler.interrupt()
+        if hasattr(user_interaction_handler, 'show_interrupted'):
+            user_interaction_handler.show_interrupted()
+            time.sleep(0.3)
+        user_interaction_handler.start()
+
+    # Setup GPIO button if handler has one (works without --enable_keyboard_control)
+    if hasattr(agent_interaction_handler, '_gpio_button') and agent_interaction_handler._gpio_button is not None:
+        agent_interaction_handler._gpio_button.when_pressed = on_output_interrupt
+        print("GPIO interrupt button enabled")
+
     # Setup keyboard controls via the interaction handler
     if args.enable_keyboard_control and hasattr(user_interaction_handler, 'setup_keyboard_controls'):
         # Track mute state for toggle
         mute_state = {'is_muted': False}
-
-        def on_output_interrupt():
-            """Interrupt agent's speech output."""
-            print("\n[Interrupted]")
-            va.output_handler.interrupt()
-            if hasattr(user_interaction_handler, 'show_interrupted'):
-                user_interaction_handler.show_interrupted()
-                time.sleep(0.3)
-            user_interaction_handler.start()
 
         def on_mute_toggle():
             if mute_state['is_muted']:

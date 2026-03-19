@@ -14,8 +14,20 @@ except ImportError:
     KEYBOARD_AVAILABLE = False
 
 
-def _start_keyboard_listener(callback, stop_event):
-    """Background thread that listens for space bar and calls callback."""
+def _start_keyboard_listener(key_callbacks, stop_event):
+    """Background thread that listens for keyboard input and dispatches to callbacks.
+
+    Args:
+        key_callbacks: dict mapping keys to callbacks, e.g.:
+            {
+                'enter': callback,      # Enter/Return key
+                'space': callback,      # Space bar
+                'escape': callback,     # ESC key
+                'g': callback,          # Letter keys
+                ...
+            }
+        stop_event: threading.Event to signal when to stop listening
+    """
     if not KEYBOARD_AVAILABLE:
         return
 
@@ -31,8 +43,20 @@ def _start_keyboard_listener(callback, stop_event):
             while not stop_event.is_set():
                 if select.select([sys.stdin], [], [], 0.1)[0]:
                     key = sys.stdin.read(1)
-                    if key == ' ':
-                        callback()
+
+                    # Map special keys to names
+                    if key == '\n' or key == '\r':
+                        key_name = 'enter'
+                    elif key == ' ':
+                        key_name = 'space'
+                    elif key == '\x1b':
+                        key_name = 'escape'
+                    else:
+                        key_name = key.lower()
+
+                    # Call the callback if registered
+                    if key_name in key_callbacks:
+                        key_callbacks[key_name]()
         except:
             pass
         finally:
@@ -117,10 +141,29 @@ class ColoredHandler(printers.CaptionPrinter):
         self.print(idle_msg, partial=True)
 
     def on_button_press(self, callback):
-        """Register a callback for space bar press (simulates button)."""
+        """Register a callback for ENTER key press (simulates button).
+
+        This is a convenience wrapper around setup_keyboard_controls for
+        simple interrupt-only use cases.
+        """
+        self.setup_keyboard_controls({'enter': callback})
+
+    def setup_keyboard_controls(self, key_callbacks):
+        """Set up keyboard controls with custom key bindings.
+
+        Args:
+            key_callbacks: dict mapping key names to callbacks, e.g.:
+                {
+                    'enter': on_interrupt,
+                    'space': on_mute_toggle,
+                    'escape': on_exit,
+                    'g': lambda: change_lang('german'),
+                }
+        """
         if not hasattr(self, '_stop_event'):
             self._stop_event = threading.Event()
-        _start_keyboard_listener(callback, self._stop_event)
+        self._key_callbacks = key_callbacks
+        _start_keyboard_listener(key_callbacks, self._stop_event)
 
     def cleanup(self):
         """Clean up resources."""
@@ -129,10 +172,10 @@ class ColoredHandler(printers.CaptionPrinter):
 
 
 class ColoredHandlerWithInterruptButton(ColoredHandler):
-    """ColoredHandler extended with GPIO-based interrupt button (and space bar fallback).
+    """ColoredHandler extended with GPIO-based interrupt button (and ENTER key fallback).
 
     Uses GPIO 16 for the interrupt button (no conflict with ReSpeaker HAT or display pins).
-    On non-Pi systems, falls back to space bar only.
+    On non-Pi systems, falls back to ENTER key only.
     """
 
     INTERRUPT_BUTTON_PIN = 16  # GPIO 16 - free pin, no conflict with display/LEDs/ReSpeaker
@@ -152,10 +195,10 @@ class ColoredHandlerWithInterruptButton(ColoredHandler):
                 self._gpio_button = None
 
     def on_button_press(self, callback):
-        """Register a callback for both space bar and GPIO button press."""
+        """Register a callback for both ENTER key and GPIO button press."""
         self._button_callback = callback
 
-        # Set up space bar listener (from parent)
+        # Set up ENTER key listener (from parent)
         super().on_button_press(callback)
 
         # Set up GPIO button if available
@@ -206,10 +249,15 @@ class MinimalHandler(printers.CaptionPrinter):
         sys.stdout.flush()
 
     def on_button_press(self, callback):
-        """Register a callback for space bar press (simulates button)."""
+        """Register a callback for ENTER key press (simulates button)."""
+        self.setup_keyboard_controls({'enter': callback})
+
+    def setup_keyboard_controls(self, key_callbacks):
+        """Set up keyboard controls with custom key bindings."""
         if not hasattr(self, '_stop_event'):
             self._stop_event = threading.Event()
-        _start_keyboard_listener(callback, self._stop_event)
+        self._key_callbacks = key_callbacks
+        _start_keyboard_listener(key_callbacks, self._stop_event)
 
     def cleanup(self):
         """Clean up resources."""

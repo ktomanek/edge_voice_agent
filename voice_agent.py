@@ -1,6 +1,6 @@
 # Fully offline running voice agent.
 #
-# Uses OpenAI's client library to connect to LLM. For now, we assume the LLM is self-hosted via LLama.cpp (see script to
+# Uses OpenAI-compatible format to connect to LLM. For now, we assume the LLM is self-hosted via LLama.cpp (see script to
 # start server). Currently, we do not support cloud-hosted LLMs (API key/model name ignored so far, but should be an easy change).
 # Supports several on-device runnable tts-engines and asr models.
 # Defaults are set for smallest models so that it can run on edge devices like Raspberry Pi 5.
@@ -571,7 +571,46 @@ class LLmToAudio:
 
         # Process any remaining text
         self._finish_processing()
-            
+
+    def update_language_context(self, tts_model_path, new_system_prompt):
+        """Dynamically load a new TTS model and update the LLM prompt."""
+
+
+        # Initialize the new model first to minimize downtime
+        self._info(f"Loading new TTS model: {tts_model_path}")
+        new_tts = tts_engines.TTS_Piper(tts_model_path, warmup=False)
+        self._info("New TTS model initialized.")
+
+        with self.lock:
+            # Close old audio stream (sample rate may have changed)
+            if self.audio_stream is not None:
+                try:
+                    self.audio_stream.close()
+                except:
+                    pass
+                self.audio_stream = None
+
+            # Swap the TTS engine
+            self.tts = new_tts
+            self.sample_rate = self.tts.get_sample_rate()
+            # Clear any remaining buffers
+            self.text_buffer = ""
+            while not self.sentence_queue.empty():
+                try:
+                    self.sentence_queue.get_nowait()
+                except:
+                    pass
+            self._info("Ser new TTS model...")
+
+            # Update the prompt and wipe the conversation history
+            self.system_prompt = new_system_prompt
+            self.messages = [{'role': 'system', 'content': self.system_prompt}]
+
+            # Reset processing state
+            self.is_speaking = False
+            self.is_processing = False     
+            self._info("Resetted all states and context...")
+
 
 class AudioToText:
     """Stream from audio and transcribe."""
@@ -624,6 +663,7 @@ class AudioToText:
 
         # Transcription thread
         self.stop_event = threading.Event()
+        self.interrupt_event = threading.Event()  # For aborting current input
         self.transcription_handler = captioning_utils.TranscriptionWorker(
             sampling_rate=captioning_utils.SAMPLING_RATE)
 
@@ -703,7 +743,31 @@ class AudioToText:
         if self.input_audio_stream:
             return not self.input_audio_stream.active
         return True  # If no stream exists, consider it muted
-            
+
+    def interrupt(self):
+        """Interrupt current input and discard partial transcription.
+
+        Use this when you need to abort user input mid-speech,
+        e.g., when changing language settings.
+        """
+        self._info("Input interrupted, discarding partial transcription")
+
+        # Set interrupt flag (checked by get_speech_input before returning)
+        self.interrupt_event.set()
+
+        # Discard any partial transcription
+        self.transcription_handler.reset()
+
+        # Reset VAD state
+        self.vad.reset_states()
+
+        # Clear buffered audio
+        try:
+            while True:
+                self.audio_queue.get_nowait()
+        except queue.Empty:
+            pass
+
     def shutdown(self):
         # Clean up audio resources
         if self.input_audio_stream:
@@ -765,6 +829,14 @@ class AudioToText:
                         # define EOU when we haven't seen speech for a while
                         if self.transcription_handler.time_since_last_speech() > self.end_of_utterance_duration:
                             self._info(">>> seems user stopped speaking...")
+
+                            # Check if interrupted (e.g., language change) - discard input
+                            if self.interrupt_event.is_set():
+                                self._info(">>> input was interrupted, discarding")
+                                self.interrupt_event.clear()
+                                all_transcribed = ''
+                                break
+
                             # retranscribe and capture all
                             all_transcribed = ' '.join(self.transcription_handler.transcribed_segments)
                             self._info(f">> all said: {all_transcribed}")
@@ -861,3 +933,47 @@ class VoiceAgent():
     def is_microphone_muted(self):
         """Check if the microphone is currently muted"""
         return self.input_handler.is_muted()
+
+    def change_language(self, lang_config):
+        """Dynamically change the target language for translation.
+
+        Interrupts any ongoing input/output, switches TTS model and prompt,
+        speaks the ready message, and returns to listening state.
+
+        Args:
+            lang_config: dict with keys 'lang', 'tts_model', 'prompt', 'ready_message'
+        """
+        self._info(f"Changing language to {lang_config['lang']}")
+
+        # 1. Interrupt input FIRST to discard partial speech immediately
+        #    (before output_handler.interrupt()'s 0.5s sleep)
+        self.input_handler.interrupt()
+
+        # 2. Interrupt any ongoing output to avoid audio overlap
+        self.output_handler.interrupt()
+
+        # 3. Mute mic to prevent picking up our own speech
+        was_muted = self.is_microphone_muted()
+        if not was_muted:
+            self.mute_microphone()
+
+        # 4. Update TTS model and prompt
+        self.output_handler.update_language_context(
+            tts_model_path=lang_config['tts_model'],
+            new_system_prompt=lang_config['prompt']
+        )
+
+        # 5. Clear interrupt event so we can speak the ready message
+        self.output_handler.interrupt_event.clear()
+
+        # 6. Speak ready message and wait for completion
+        self.output_handler._start_audio_stream()
+        self.output_handler._speak_sentence(lang_config['ready_message'])
+        self.output_handler._finish_processing()
+
+        # 7. Clear input interrupt event (language change complete)
+        self.input_handler.interrupt_event.clear()
+
+        # 8. Unmute and return to listening
+        if not was_muted:
+            self.unmute_microphone()                        

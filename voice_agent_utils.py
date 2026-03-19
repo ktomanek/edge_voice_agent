@@ -12,7 +12,7 @@ points.
 User: How are you?
 Pirate: Aye, I be finer than a freshly swabbed deck, mate!"""
 
-DEFAULT_START_MESSAGE = "Ahoy! Speak up, landlubber!"
+DEFAULT_START_MESSAGE = "Ahoy landlubber!"
 DEFAULT_GOODBYE_MESSAGE = "Fair winds, mate!"
 DEFAULT_EXIT_COMMAND = "please quit"
 

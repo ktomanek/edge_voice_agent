@@ -87,27 +87,73 @@ GPIO_LANGUAGE_MAP = {
     4: 'french',   # Pin 26
 }
 
+DEFAULT_OUTPUT_LANGUAGE = 'spanish'
+
 def main():
     """Main function to run the LLM to Audio output streamer."""
     
     parser = voice_agent_utils.get_cli_argument_parser()
     args = parser.parse_args()
 
+
+
     t1 = time.time()
-    print(">> Initializing Voice Agent <<")
-    va = VoiceAgent()
+    print(">> Initializing user interaction and controls <<")
 
     # Create interaction handlers
     user_interaction_handler = get_handler(args.interaction_handler, "User Input", "blue", is_agent=False)
     agent_interaction_handler = get_handler(args.interaction_handler, "Agent Output", "magenta", is_agent=True)
 
+
+    # -- Setup GPIO rotary switch (if available) --
+    switches = None
+    if GPIO_AVAILABLE:
+        db_time = 0.05
+        switches = {
+            1: Button(0, pull_up=True, bounce_time=db_time),
+            2: Button(5, pull_up=True, bounce_time=db_time),
+            3: Button(6, pull_up=True, bounce_time=db_time),
+            4: Button(26, pull_up=True, bounce_time=db_time)
+        }
+        print(">> GPIO rotary switch detected.")
+
+    # Read rotary dial position (or use default if not connected)
+    def get_current_rotary_language():
+        """Returns the language name based on current rotary switch position."""
+        if switches:
+            for pos, btn in switches.items():
+                if btn.is_pressed:
+                    return GPIO_LANGUAGE_MAP.get(pos)
+        return None
+
+    initial_language = get_current_rotary_language()
+    if initial_language is None:
+        initial_language = DEFAULT_OUTPUT_LANGUAGE
+        print(f">> No rotary position detected, using default: {initial_language.upper()}")
+    else:
+        print(f">> Initial language from rotary dial: {initial_language.upper()}")
+    print(f">> Took {time.time()-t1:.2f} secs to initialize interaction and controls <<")
+
+
+    # get startup language
+    start_config = LANGUAGE_CONFIGS[initial_language]
+    start_start_message = start_config["ready_message"]
+    start_tts_model_path = start_config["tts_model"]
+
+
+
+    # initialize voice agent components
+    t1 = time.time()
+    print(">> Initializing Voice Agent and components <<")
+    va = VoiceAgent()
+
     va.init_LLmToAudioOutput(
         llm_server_url=args.llm_server_url,
         system_prompt="",
-        start_message="",#Ready to translate! Set your output language, please speak in English.",
+        start_message=start_start_message,
         tts_engine=args.tts_engine,
         speaking_rate=args.speaking_rate,
-        tts_model_path=args.tts_model_path,
+        tts_model_path=start_tts_model_path,
         max_words_to_speak_start=args.max_words_to_speak_start,
         max_words_to_speak=args.max_words_to_speak,
         verbose=args.verbose,
@@ -166,19 +212,11 @@ def main():
         # print("  ENTER: interrupt | SPACE: mute/unmute | ESC: exit")
         print("  Language: g=German, s=Spanish, a=Arabic, f=French")
     
-    # -- rotary switch integration --
-    if GPIO_AVAILABLE:
+    # -- rotary switch integration (reuse switches from earlier init) --
+    if GPIO_AVAILABLE and switches:
         # Delay to avoid queuing languages
         switch_state = {'timer': None}
         SETTLE_DELAY = 0.3  # Wait before loading
-
-        db_time = 0.05
-        switches = {
-            1: Button(0, pull_up=True, bounce_time=db_time),
-            2: Button(5, pull_up=True, bounce_time=db_time),
-            3: Button(6, pull_up=True, bounce_time=db_time),
-            4: Button(26, pull_up=True, bounce_time=db_time)
-        }
 
         def check_position():
             for pos, btn in switches.items():

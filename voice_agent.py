@@ -586,13 +586,8 @@ class LLmToAudio:
 
     def update_language_context(self, tts_model_path, new_system_prompt):
         """Dynamically load a new TTS model and update the LLM prompt."""
-
-        # Load new model first to minimize downtime
-        # Note: Both models briefly in memory; on Pi with 16GB this should be fine
-        # for small Piper models (~50-100MB each)
-        self._info(f"Loading new TTS model: {tts_model_path}")
-        new_tts = tts_engines.TTS_Piper(tts_model_path, warmup=False)
-        self._info("New TTS model initialized.")
+        import gc
+        t_start = time.time()
 
         with self.lock:
             # Close old audio stream (sample rate may have changed)
@@ -603,9 +598,13 @@ class LLmToAudio:
                     pass
                 self.audio_stream = None
 
-            # Swap the TTS engine (old model will be GC'd)
-            self.tts = new_tts
-            self.sample_rate = self.tts.get_sample_rate()
+            # Unload old TTS model first to free memory before loading new one
+            self._info("Unloading old TTS model...")
+            old_tts = self.tts
+            self.tts = None
+            del old_tts
+            gc.collect()  # Force immediate cleanup
+
             # Clear any remaining buffers
             self.text_buffer = ""
             while not self.sentence_queue.empty():
@@ -613,7 +612,15 @@ class LLmToAudio:
                     self.sentence_queue.get_nowait()
                 except:
                     pass
-            self._info("Ser new TTS model...")
+
+            # Load new model
+            self._info(f"Loading new TTS model: {tts_model_path}")
+            new_tts = tts_engines.TTS_Piper(tts_model_path, warmup=False)
+
+            # Set the new TTS engine
+            self.tts = new_tts
+            self.sample_rate = self.tts.get_sample_rate()
+            print(f">> TTS model switched in {time.time() - t_start:.2f} secs")
 
             # Update the prompt and wipe the conversation history
             self.system_prompt = new_system_prompt
@@ -621,8 +628,8 @@ class LLmToAudio:
 
             # Reset processing state
             self.is_speaking = False
-            self.is_processing = False     
-            self._info("Resetted all states and context...")
+            self.is_processing = False
+            self._info("Reset all states and context...")
 
 
 class AudioToText:
@@ -868,7 +875,8 @@ class VoiceAgent():
 
 
     def __init__(self):
-        pass
+        # Lock to prevent concurrent language changes (causes segfault in TTS)
+        self._language_change_lock = threading.Lock()
 
     def _info(self, text):
         """Print info message."""
@@ -960,37 +968,48 @@ class VoiceAgent():
         Args:
             lang_config: dict with keys 'lang', 'tts_model', 'prompt', 'ready_message'
         """
-        self._info(f"Changing language to {lang_config['lang']}")
+        # Prevent concurrent language changes (causes segfault in TTS loading)
+        if not self._language_change_lock.acquire(blocking=False):
+            self._info(f"Language change to {lang_config['lang']} skipped (another change in progress)")
+            return
 
-        # 1. Interrupt input FIRST to discard partial speech immediately
-        #    (before output_handler.interrupt()'s 0.5s sleep)
-        self.input_handler.interrupt()
+        try:
+            self._info(f"Changing language to {lang_config['lang']}")
 
-        # 2. Interrupt any ongoing output to avoid audio overlap
-        self.output_handler.interrupt()
+            # 1. Interrupt input FIRST to discard partial speech immediately
+            #    (before output_handler.interrupt()'s 0.5s sleep)
+            self.input_handler.interrupt()
 
-        # 3. Mute mic to prevent picking up our own speech
-        was_muted = self.is_microphone_muted()
-        if not was_muted:
-            self.mute_microphone()
+            # 2. Interrupt any ongoing output to avoid audio overlap
+            self.output_handler.interrupt()
 
-        # 4. Update TTS model and prompt
-        self.output_handler.update_language_context(
-            tts_model_path=lang_config['tts_model'],
-            new_system_prompt=lang_config['prompt']
-        )
+            # 3. Mute mic to prevent picking up our own speech
+            was_muted = self.is_microphone_muted()
+            if not was_muted:
+                self.mute_microphone()
 
-        # 5. Clear interrupt event so we can speak the ready message
-        self.output_handler.interrupt_event.clear()
+            # 4. Update TTS model and prompt
+            self.output_handler.update_language_context(
+                tts_model_path=lang_config['tts_model'],
+                new_system_prompt=lang_config['prompt']
+            )
 
-        # 6. Speak ready message and wait for completion
-        self.output_handler._start_audio_stream()
-        self.output_handler._speak_sentence(lang_config['ready_message'])
-        self.output_handler._finish_processing()
+            # 5. Clear interrupt event so we can speak the ready message
+            self.output_handler.interrupt_event.clear()
 
-        # 7. Clear input interrupt event (language change complete)
-        self.input_handler.interrupt_event.clear()
+            # 6. Speak ready message and wait for completion
+            self.output_handler._start_audio_stream()
+            self.output_handler._speak_sentence(lang_config['ready_message'])
+            self.output_handler._finish_processing()
 
-        # 8. Unmute and return to listening
-        if not was_muted:
-            self.unmute_microphone()                        
+            # 7. Clear input interrupt event (language change complete)
+            self.input_handler.interrupt_event.clear()
+
+            # 8. Unmute and return to listening
+            if not was_muted:
+                self.unmute_microphone()
+
+            # 9. Cooldown to let native ONNX resources settle before allowing next change
+            time.sleep(0.3)
+        finally:
+            self._language_change_lock.release()                        

@@ -137,7 +137,8 @@ def main():
 
     # get startup language
     start_config = LANGUAGE_CONFIGS[initial_language]
-    start_start_message = start_config["ready_message"]
+    start_system_prompt = start_config["prompt"]
+    start_ready_message = start_config["ready_message"]
     start_tts_model_path = start_config["tts_model"]
 
 
@@ -149,8 +150,8 @@ def main():
 
     va.init_LLmToAudioOutput(
         llm_server_url=args.llm_server_url,
-        system_prompt="",
-        start_message=start_start_message,
+        system_prompt=start_system_prompt,
+        start_message=start_ready_message,
         tts_engine=args.tts_engine,
         speaking_rate=args.speaking_rate,
         tts_model_path=start_tts_model_path,

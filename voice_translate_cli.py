@@ -100,9 +100,9 @@ def main():
     t1 = time.time()
     print(">> Initializing user interaction and controls <<")
 
-    # Create interaction handlers
-    user_interaction_handler = get_handler(args.interaction_handler, "User Input", "blue", is_agent=False)
-    agent_interaction_handler = get_handler(args.interaction_handler, "Agent Output", "magenta", is_agent=True)
+    # Create interaction handlers (always use colored_interrupt for translation CLI)
+    user_interaction_handler = get_handler("colored_interrupt", "User Input", "blue", is_agent=False)
+    agent_interaction_handler = get_handler("colored_interrupt", "Agent Output", "magenta", is_agent=True)
 
 
     # -- Setup GPIO rotary switch (if available) --

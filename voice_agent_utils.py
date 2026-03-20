@@ -36,7 +36,6 @@ def get_cli_argument_parser():
     parser.add_argument("--end_of_utterance_duration", type=float, default=0.7, help="Silence seconds until end of turn of user identified")
     parser.add_argument("--enable_keyboard_control", action="store_true", default=False, help="Enable keyboard control (space to mute/unmute, ESC to exit)")
     parser.add_argument("--verbose", action="store_true", help="Verbose status info")
-    parser.add_argument("--single_turn", action="store_true", help="Disable conversation history for single-turn interactions.")
     parser.add_argument("--interaction_handler", choices=['colored', 'colored_interrupt', 'minimal', 'whisplay', 'display_leds_interrupt'], default="colored", help="Interaction handler: 'colored' (default) for rich console output, 'colored_interrupt' for colored output with GPIO interrupt button, 'minimal' for emoji status, 'whisplay' for Whisplay HAT, 'display_leds_interrupt' for Waveshare display + external LEDs + ReSpeaker button.")
 
     return parser

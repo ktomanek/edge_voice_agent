@@ -587,8 +587,9 @@ class LLmToAudio:
     def update_language_context(self, tts_model_path, new_system_prompt):
         """Dynamically load a new TTS model and update the LLM prompt."""
 
-
-        # Initialize the new model first to minimize downtime
+        # Load new model first to minimize downtime
+        # Note: Both models briefly in memory; on Pi with 16GB this should be fine
+        # for small Piper models (~50-100MB each)
         self._info(f"Loading new TTS model: {tts_model_path}")
         new_tts = tts_engines.TTS_Piper(tts_model_path, warmup=False)
         self._info("New TTS model initialized.")
@@ -602,7 +603,7 @@ class LLmToAudio:
                     pass
                 self.audio_stream = None
 
-            # Swap the TTS engine
+            # Swap the TTS engine (old model will be GC'd)
             self.tts = new_tts
             self.sample_rate = self.tts.get_sample_rate()
             # Clear any remaining buffers

@@ -55,7 +55,7 @@ def main():
         max_words_to_speak_start=args.max_words_to_speak_start,
         max_words_to_speak=args.max_words_to_speak,
         verbose=args.verbose,
-        single_turn=args.single_turn,
+        single_turn=False,  # Conversational agent keeps history
         printer=agent_interaction_handler
     )
 

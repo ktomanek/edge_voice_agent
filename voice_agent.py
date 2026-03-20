@@ -91,8 +91,13 @@ class LLmToAudio:
         self.sample_rate = self.tts.get_sample_rate()
         self._info(f"Using sample rate: {self.sample_rate} Hz")
         self.speaking_rate = speaking_rate
-        self._info(f"Using speaking rate: {self.speaking_rate}")        
+        self._info(f"Using speaking rate: {self.speaking_rate}")
         print(f"> TTS initialized in {time.time()-t1:.2f} secs.")
+
+        # Cache for TTS models to avoid reloading on language switch
+        self._tts_cache = {}
+        if tts_model_path:
+            self._tts_cache[tts_model_path] = self.tts
 
         # increase buffer size if needed, esp on slower devices like raspberry pi
         self.audio_buffer_size = 2048
@@ -586,7 +591,6 @@ class LLmToAudio:
 
     def update_language_context(self, tts_model_path, new_system_prompt):
         """Dynamically load a new TTS model and update the LLM prompt."""
-        import gc
         t_start = time.time()
 
         with self.lock:
@@ -598,13 +602,6 @@ class LLmToAudio:
                     pass
                 self.audio_stream = None
 
-            # Unload old TTS model first to free memory before loading new one
-            self._info("Unloading old TTS model...")
-            old_tts = self.tts
-            self.tts = None
-            del old_tts
-            gc.collect()  # Force immediate cleanup
-
             # Clear any remaining buffers
             self.text_buffer = ""
             while not self.sentence_queue.empty():
@@ -613,12 +610,17 @@ class LLmToAudio:
                 except:
                     pass
 
-            # Load new model
-            self._info(f"Loading new TTS model: {tts_model_path}")
-            new_tts = tts_engines.TTS_Piper(tts_model_path, warmup=False)
+            # Check if model is already cached
+            if tts_model_path in self._tts_cache:
+                self._info(f"Using cached TTS model: {tts_model_path}")
+                self.tts = self._tts_cache[tts_model_path]
+            else:
+                # Load new model and cache it
+                self._info(f"Loading new TTS model: {tts_model_path}")
+                new_tts = tts_engines.TTS_Piper(tts_model_path, warmup=False)
+                self._tts_cache[tts_model_path] = new_tts
+                self.tts = new_tts
 
-            # Set the new TTS engine
-            self.tts = new_tts
             self.sample_rate = self.tts.get_sample_rate()
             print(f">> TTS model switched in {time.time() - t_start:.2f} secs")
 

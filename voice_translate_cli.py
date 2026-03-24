@@ -1,25 +1,28 @@
 # example for voice translation agent
+# Translations are done stateless, single-turn.
 #
-# Supports language switching by eiher keyboard shortcuts or with 
-# rotary dial on GPIO pins (Raspberry Pi etc)
+# Supports language switching by either keyboard shortcuts or with
+# rotary dial on GPIO pins (Raspberry Pi 5 or Orange Pi 5 Pro)
 #
 # Usage examples:
 #
 #   Basic (with keyboard language switching):
 #     python voice_translate_cli.py
 #
+#   With GPIO on Raspberry Pi 5:
+#     python voice_translate_cli.py --platform rpi5
+#
+#   With GPIO on Orange Pi 5 Pro:
+#     python voice_translate_cli.py --platform opi5
+#
 #   Language switching keys:
 #     g = German    (speaks "Bereit!")
 #     s = Spanish   (speaks "Listo!")
 #     a = Arabic    (speaks "Mustaeidd!")
 #     f = French    (speaks "Pret!")
-##
+#
 #   Verbose mode (debug output):
 #     python voice_translate_cli.py --verbose
-#
-#   On Raspberry Pi with rotary switch:
-#     - GPIO pins 0, 5, 6, 26 for language selection
-#     - Both keyboard and rotary switch work simultaneously
 #
 # Exit: Say "goodbye" (voice command)
 
@@ -34,13 +37,6 @@ import voice_agent_utils
 from voice_agent_interaction_handlers import get_handler
 
 print(f">> -- All imports done in {time.time() - start_time:.2f} seconds -- <<")
-
-# Try to import GPIO (only available on Raspberry Pi)
-try:
-    from gpiozero import Button
-    GPIO_AVAILABLE = True
-except ImportError:
-    GPIO_AVAILABLE = False
 
 # Language configurations for translation
 LANGUAGE_CONFIGS = {
@@ -79,54 +75,41 @@ LANGUAGE_KEYS = {
     'f': 'french',
 }
 
-# GPIO pin to language mapping (for rotary switch)
-GPIO_LANGUAGE_MAP = {
-    1: 'german',   # Pin 0
-    2: 'spanish',  # Pin 5
-    3: 'arabic',   # Pin 6
-    4: 'french',   # Pin 26
-}
-
 DEFAULT_OUTPUT_LANGUAGE = 'spanish'
 
 def main():
     """Main function to run the LLM to Audio output streamer."""
-    
+
     parser = voice_agent_utils.get_cli_argument_parser()
+    parser.add_argument("--platform", choices=['rpi5', 'opi5'], default=None,
+                        help="Hardware platform for GPIO: rpi5 (Raspberry Pi 5) or opi5 (Orange Pi 5 Pro)")
     args = parser.parse_args()
 
-
+    voice_agent_utils.apply_audio_device_settings(args)
 
     t1 = time.time()
     print(">> Initializing user interaction and controls <<")
 
-    # Create interaction handlers (always use colored_interrupt for translation CLI)
-    user_interaction_handler = get_handler("colored_interrupt", "User Input", "blue", is_agent=False)
-    agent_interaction_handler = get_handler("colored_interrupt", "Agent Output", "magenta", is_agent=True)
+    # Create interaction handlers (GPIO is handled separately via gpio_inputs.py)
+    user_interaction_handler = get_handler("colored", "User Input", "blue", is_agent=False)
+    agent_interaction_handler = get_handler("colored", "Agent Output", "magenta", is_agent=True)
 
-
-    # -- Setup GPIO rotary switch (if available) --
-    switches = None
-    if GPIO_AVAILABLE:
-        db_time = 0.05
-        switches = {
-            1: Button(0, pull_up=True, bounce_time=db_time),
-            2: Button(5, pull_up=True, bounce_time=db_time),
-            3: Button(6, pull_up=True, bounce_time=db_time),
-            4: Button(26, pull_up=True, bounce_time=db_time)
-        }
-        print(">> GPIO rotary switch detected.")
+    # -- Setup GPIO handler based on platform --
+    gpio_handler = None
+    if args.platform:
+        from gpio_inputs import RaspberryPi5GPIOHandler, OrangePi5ProGPIOHandler
+        if args.platform == 'rpi5':
+            gpio_handler = RaspberryPi5GPIOHandler()
+        elif args.platform == 'opi5':
+            gpio_handler = OrangePi5ProGPIOHandler()
+        gpio_handler.setup()
+        print(f">> GPIO handler: {gpio_handler.__class__.__name__}")
 
     # Read rotary dial position (or use default if not connected)
-    def get_current_rotary_language():
-        """Returns the language name based on current rotary switch position."""
-        if switches:
-            for pos, btn in switches.items():
-                if btn.is_pressed:
-                    return GPIO_LANGUAGE_MAP.get(pos)
-        return None
+    initial_language = None
+    if gpio_handler:
+        initial_language = gpio_handler.get_current_language()
 
-    initial_language = get_current_rotary_language()
     if initial_language is None:
         initial_language = DEFAULT_OUTPUT_LANGUAGE
         print(f">> No rotary position detected, using default: {initial_language.upper()}")
@@ -194,10 +177,10 @@ def main():
         if args.verbose:
             print(f"[Interrupt #{interrupt_count['n']} done]")
 
-    # Setup GPIO interrupt button if handler has one
-    if hasattr(agent_interaction_handler, '_gpio_button') and agent_interaction_handler._gpio_button is not None:
-        agent_interaction_handler._gpio_button.when_pressed = on_output_interrupt
-        print("GPIO interrupt button enabled")
+    # Setup GPIO interrupt button via gpio_handler
+    if gpio_handler:
+        gpio_handler.set_interrupt_callback(on_output_interrupt)
+        print(">> GPIO interrupt button enabled")
 
     # Setup keyboard controls via the interaction handler
     if hasattr(user_interaction_handler, 'setup_keyboard_controls'):
@@ -213,39 +196,36 @@ def main():
         # print("  ENTER: interrupt | SPACE: mute/unmute | ESC: exit")
         print("  Language: g=German, s=Spanish, a=Arabic, f=French")
     
-    # -- rotary switch integration (reuse switches from earlier init) --
-    if GPIO_AVAILABLE and switches:
-        # Delay to avoid queuing languages
+    # -- rotary switch integration via gpio_handler --
+    if gpio_handler:
+        # Delay to avoid queuing languages during dial turn
         switch_state = {'timer': None}
-        SETTLE_DELAY = 0.3  # Wait before loading
+        SETTLE_DELAY = 0.3
 
-        def check_position():
-            for pos, btn in switches.items():
-                if btn.is_pressed:
-                    lang_name = GPIO_LANGUAGE_MAP.get(pos)
-                    if switch_state['timer'] is not None:
-                        switch_state['timer'].cancel()
-                    if lang_name and lang_name in LANGUAGE_CONFIGS:
-                        switch_state['timer'] = threading.Timer(SETTLE_DELAY, va.change_language, args=[LANGUAGE_CONFIGS[lang_name]])
-                        switch_state['timer'].start()
-                    return
+        def on_language_change(lang_name):
+            if switch_state['timer'] is not None:
+                switch_state['timer'].cancel()
+            if lang_name in LANGUAGE_CONFIGS:
+                switch_state['timer'] = threading.Timer(
+                    SETTLE_DELAY,
+                    va.change_language,
+                    args=[LANGUAGE_CONFIGS[lang_name]]
+                )
+                switch_state['timer'].start()
 
-        # Assign callbacks (gpiozero runs these in a background thread automatically)
-        for btn in switches.values():
-            btn.when_pressed = check_position
-
-        print(">> Rotary switch listener active.")
-        # Check initial position on startup
-        check_position()
+        gpio_handler.set_language_change_callback(on_language_change)
+        print(">> Rotary switch listener active")
     else:
-        print(">> GPIO not available, rotary switch disabled (use keyboard: g/s/a/f)")
-    # -- rotary switch integration --
+        print(">> GPIO not available (use --platform rpi5 or opi5), using keyboard: g/s/a/f")
 
     # Run the voice agent
     try:
         va.run()
     finally:
-        # Clean up handler (handles keyboard listener cleanup too)
+        # Clean up GPIO handler
+        if gpio_handler:
+            gpio_handler.cleanup()
+        # Clean up interaction handler (handles keyboard listener cleanup too)
         if hasattr(user_interaction_handler, 'cleanup'):
             user_interaction_handler.cleanup()
 

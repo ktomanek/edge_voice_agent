@@ -37,6 +37,8 @@ def main():
     parser = voice_agent_utils.get_cli_argument_parser()
     args = parser.parse_args()
 
+    voice_agent_utils.apply_audio_device_settings(args)
+
     t1 = time.time()
     print(">> Initializing Voice Agent <<")
     va = VoiceAgent()

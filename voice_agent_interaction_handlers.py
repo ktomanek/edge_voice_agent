@@ -169,47 +169,6 @@ class ColoredHandler(printers.CaptionPrinter):
             self._stop_event.set()
 
 
-class ColoredHandlerWithInterruptButton(ColoredHandler):
-    """ColoredHandler extended with GPIO-based interrupt button (and ENTER key fallback)."""
-
-    INTERRUPT_BUTTON_PIN = 22  # GPIO 22 - free pin, no conflict with ReSpeaker HAT or display
-
-    def __init__(self, title, title_color='blue', is_agent=False, **kwargs):
-        super().__init__(title, title_color, **kwargs)
-        self._gpio_button = None
-        self._button_callback = None
-
-        # Only initialize GPIO button for agent handler to avoid pin conflicts
-        if is_agent and GPIO_AVAILABLE:
-            try:
-                from gpiozero import Button
-                self._gpio_button = Button(self.INTERRUPT_BUTTON_PIN)
-            except Exception as e:
-                print(f"Warning: Could not initialize GPIO button on pin {self.INTERRUPT_BUTTON_PIN}: {e}")
-                self._gpio_button = None
-
-    def on_button_press(self, callback):
-        """Register a callback for both ENTER key and GPIO button press."""
-        self._button_callback = callback
-
-        # Set up ENTER key listener (from parent)
-        super().on_button_press(callback)
-
-        # Set up GPIO button if available
-        if self._gpio_button is not None:
-            self._gpio_button.when_pressed = callback
-
-    def cleanup(self):
-        """Clean up resources including GPIO button."""
-        super().cleanup()
-        if self._gpio_button is not None:
-            try:
-                self._gpio_button.close()
-            except:
-                pass
-            self._gpio_button = None
-
-
 class MinimalHandler(printers.CaptionPrinter):
     """Minimal handler with no colors, just shows emoji for listening/speaking status."""
 
@@ -807,7 +766,6 @@ class DisplayWithLEDandInterruptButton(printers.CaptionPrinter):
 # Registry of available interaction handlers
 HANDLER_TYPES = {
     'colored': ColoredHandler,
-    'colored_interrupt': ColoredHandlerWithInterruptButton,
     'minimal': MinimalHandler,
     'whisplay': WhisplayHandler,
     'display_leds_interrupt': DisplayWithLEDandInterruptButton,

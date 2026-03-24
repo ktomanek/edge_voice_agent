@@ -81,8 +81,6 @@ def main():
     """Main function to run the LLM to Audio output streamer."""
 
     parser = voice_agent_utils.get_cli_argument_parser()
-    parser.add_argument("--platform", choices=['rpi5', 'opi5'], default=None,
-                        help="Hardware platform for GPIO: rpi5 (Raspberry Pi 5) or opi5 (Orange Pi 5 Pro)")
     args = parser.parse_args()
 
     voice_agent_utils.apply_audio_device_settings(args)
@@ -102,7 +100,7 @@ def main():
             gpio_handler = RaspberryPi5GPIOHandler()
         elif args.platform == 'opi5':
             gpio_handler = OrangePi5ProGPIOHandler()
-        gpio_handler.setup()
+        gpio_handler.setup(add_interrupt_button=True, add_rotary_dial=True)
         print(f">> GPIO handler: {gpio_handler.__class__.__name__}")
 
     # Read rotary dial position (or use default if not connected)
@@ -185,16 +183,18 @@ def main():
     # Setup keyboard controls via the interaction handler
     if hasattr(user_interaction_handler, 'setup_keyboard_controls'):
         # Add language switching keys to callbacks
-        key_callbacks = {
-        }
+        key_callbacks = {}
         for key, lang_name in LANGUAGE_KEYS.items():
             key_callbacks[key] = lambda ln=lang_name: va.change_language(LANGUAGE_CONFIGS[ln])
 
-        user_interaction_handler.setup_keyboard_controls(key_callbacks)
+        # Add ENTER for interrupt if --enable_keyboard_control is set
+        if args.enable_keyboard_control:
+            key_callbacks['enter'] = on_output_interrupt
+            print("Keyboard controls: ENTER=interrupt | g=German, s=Spanish, a=Arabic, f=French")
+        else:
+            print("Keyboard controls: g=German, s=Spanish, a=Arabic, f=French")
 
-        print("Keyboard controls active:")
-        # print("  ENTER: interrupt | SPACE: mute/unmute | ESC: exit")
-        print("  Language: g=German, s=Spanish, a=Arabic, f=French")
+        user_interaction_handler.setup_keyboard_controls(key_callbacks)
     
     # -- rotary switch integration via gpio_handler --
     if gpio_handler:

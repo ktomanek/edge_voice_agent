@@ -7,6 +7,12 @@
 #   With keyboard controls:
 #     python voice_agent_cli.py --enable_keyboard_control
 #
+#   With GPIO interrupt button on Raspberry Pi 5:
+#     python voice_agent_cli.py --platform rpi5
+#
+#   With GPIO interrupt button on Orange Pi 5 Pro:
+#     python voice_agent_cli.py --platform opi5
+#
 #   Keyboard controls (when enabled):
 #     ENTER - Interrupt agent output (stops current speech and returns to listening)
 #     SPACE - Toggle microphone mute/unmute
@@ -46,6 +52,17 @@ def main():
     # Create interaction handlers
     user_interaction_handler = get_handler(args.interaction_handler, "User Input", "blue", is_agent=False)
     agent_interaction_handler = get_handler(args.interaction_handler, "Agent Output", "magenta", is_agent=True)
+
+    # Setup GPIO handler based on platform
+    gpio_handler = None
+    if args.platform:
+        from gpio_inputs import RaspberryPi5GPIOHandler, OrangePi5ProGPIOHandler
+        if args.platform == 'rpi5':
+            gpio_handler = RaspberryPi5GPIOHandler()
+        elif args.platform == 'opi5':
+            gpio_handler = OrangePi5ProGPIOHandler()
+        gpio_handler.setup(add_interrupt_button=True, add_rotary_dial=False)
+        print(f">> GPIO handler: {gpio_handler.__class__.__name__}")
 
     va.init_LLmToAudioOutput(
         llm_server_url=args.llm_server_url,
@@ -93,10 +110,10 @@ def main():
         if args.verbose:
             print(f"[Interrupt #{interrupt_count['n']} done]")
 
-    # Setup GPIO button if handler has one (works without --enable_keyboard_control)
-    if hasattr(agent_interaction_handler, '_gpio_button') and agent_interaction_handler._gpio_button is not None:
-        agent_interaction_handler._gpio_button.when_pressed = on_output_interrupt
-        print("GPIO interrupt button enabled")
+    # Setup GPIO interrupt button via gpio_handler
+    if gpio_handler:
+        gpio_handler.set_interrupt_callback(on_output_interrupt)
+        print(">> GPIO interrupt button enabled")
 
     # Setup keyboard controls via the interaction handler
     if args.enable_keyboard_control and hasattr(user_interaction_handler, 'setup_keyboard_controls'):
@@ -126,7 +143,10 @@ def main():
     try:
         va.run()
     finally:
-        # Clean up handler (handles keyboard listener cleanup too)
+        # Clean up GPIO handler
+        if gpio_handler:
+            gpio_handler.cleanup()
+        # Clean up interaction handler (handles keyboard listener cleanup too)
         if hasattr(user_interaction_handler, 'cleanup'):
             user_interaction_handler.cleanup()
 

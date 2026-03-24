@@ -199,10 +199,10 @@ class RaspberryPi5GPIOHandler(GPIOHandler):
 
     INTERRUPT_PIN = 22
     ROTARY_PINS = {
-        'german': 0,
-        'spanish': 5,
-        'arabic': 6,
-        'french': 26,
+        'german': 23,
+        'spanish': 24,
+        'arabic': 25,
+        'french': 27,
     }
     BOUNCE_TIME = 0.05
 

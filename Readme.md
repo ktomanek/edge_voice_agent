@@ -17,7 +17,7 @@
 
 1. **Install llama.cpp**: Follow [installation instructions](https://github.com/ggml-org/llama.cpp) and ensure `llama-server` is in your PATH and that `-DLLAMA_BUILD_SERVER=ON` is in your cmake flags.
     * make sure `llama-server` is in the path or set symlink, eg like this: `sudo ln -s ~/dev/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server`
-3. **Create python environment**: eg `python -m venv venv` and `source venv/bin/activate`
+3. **Create python environment**: eg `python -m venv venv` and `source venv/bin/activate` (see [GPIO Hardware Controls](#gpio-hardware-controls) for platform-specific setup)
 2. **One-step setup**: `python setup.py`
 3. **Try the fitness coach demo**: `./start_demo.py` (using tiny ASR/LLM and TTS models to run edge devices like a Raspberry Pi for example)
 4. **Or start manually**: 
@@ -132,6 +132,86 @@ The display shows:
 - Green LED + robot icon when agent is speaking
 - Yellow LED + pause icon when interrupted
 - Press the ReSpeaker button to interrupt the agent
+
+### GPIO Hardware Controls
+
+The voice agent supports hardware controls via GPIO on single-board computers using the `--platform` argument:
+
+| Platform | Board | GPIO Library |
+| -------- | ----- | ------------ |
+| `rpi5` | Raspberry Pi 5 | gpiozero |
+| `opi5` | Orange Pi 5 Pro | gpiod |
+
+#### Features
+
+- **Interrupt Button**: Press to interrupt the agent's speech and return to listening mode
+- **Rotary Dial**: 4-position switch for language selection (used by `voice_translate_cli.py`)
+
+#### Usage
+
+```bash
+# Voice agent with interrupt button only
+python voice_agent_cli.py --platform rpi5
+
+# Translation agent with interrupt button + rotary dial
+python voice_translate_cli.py --platform opi5
+```
+
+#### Pinout
+
+Pin numbers are **GPIO numbers** (BCM numbering), not physical pin numbers.
+
+**Raspberry Pi 5 (`rpi5`)**
+
+See [Raspberry Pi 5 Pinout](https://vilros.com/pages/raspberry-pi-5-pinout) for reference.
+
+| Function | GPIO | Physical Pin |
+| -------- | ---- | ------------ |
+| Interrupt Button | 22 | 15 |
+| Rotary: German | 23 | 16 |
+| Rotary: Spanish | 24 | 18 |
+| Rotary: Arabic | 25 | 22 |
+| Rotary: French | 27 | 13 |
+
+Note: These pins are chosen to avoid conflicts with the ReSpeaker 2-Mic HAT (which uses GPIO 5, 6, 12, 13 for LEDs and GPIO 17-21 for button/I2S audio).
+
+**Orange Pi 5 Pro (`opi5`)**
+
+See [Orange Pi 5 Pro](http://www.orangepi.org/html/hardWare/computerAndMicrocontrollers/details/Orange-Pi-5-Pro.html) for reference. Uses `/dev/gpiochip1`:
+
+| Function | GPIO |
+| -------- | ---- |
+| Interrupt Button | 14 |
+| Rotary: German | 13 |
+| Rotary: Spanish | 15 |
+| Rotary: Arabic | 12 |
+| Rotary: French | 8 |
+
+#### Installation
+
+**Raspberry Pi 5:**
+
+Requires system packages because `lgpio` (needed for Pi 5 GPIO) cannot be pip installed:
+
+```bash
+# Install system packages
+sudo apt install python3-lgpio python3-gpiozero
+
+# Create venv with access to system packages
+python3 -m venv --system-site-packages venv
+source venv/bin/activate
+
+# Then run setup
+python setup.py
+```
+
+**Orange Pi 5 Pro:**
+
+```bash
+pip install gpiod
+```
+
+Then run `python setup.py` as usual.
 
 ### End of utterance detection
 

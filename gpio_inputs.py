@@ -18,7 +18,7 @@ from typing import Callable, Optional, Dict
 class GPIOHandler(ABC):
     """Abstract base class for GPIO input handling."""
 
-    LANGUAGES = ['german', 'spanish', 'arabic', 'french']
+    LANGUAGES = ['german', 'spanish', 'french']
 
     def __init__(self):
         self._interrupt_callback: Optional[Callable] = None
@@ -79,7 +79,6 @@ class OrangePi5ProGPIOHandler(GPIOHandler):
     ROTARY_PINS = {
         'german': 13,
         'spanish': 15,
-        'arabic': 12,
         'french': 8,
     }
     BOUNCE_TIME = 0.05
@@ -201,7 +200,6 @@ class RaspberryPi5GPIOHandler(GPIOHandler):
     ROTARY_PINS = {
         'german': 23,
         'spanish': 24,
-        'arabic': 25,
         'french': 27,
     }
     BOUNCE_TIME = 0.05

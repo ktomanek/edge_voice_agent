@@ -24,11 +24,6 @@ wget https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/
 wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/carlfm/x_low/es_ES-carlfm-x_low.onnx -O models/piper/es_ES-carlfm-x_low.onnx
 wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/carlfm/x_low/es_ES-carlfm-x_low.onnx.json -O models/piper/es_ES-carlfm-x_low.onnx.json
 
-# Arabic
-models/piper/ar_JO-kareem-low.onnx
-wget https://huggingface.co/rhasspy/piper-voices/resolve/main/ar/ar_JO/kareem/low/ar_JO-kareem-low.onnx -O models/piper/ar_JO-kareem-low.onnx
-wget https://huggingface.co/rhasspy/piper-voices/resolve/main/ar/ar_JO/kareem/low/ar_JO-kareem-low.onnx.json -O models/piper/ar_JO-kareem-low.onnx.json
-
 # French
 models/piper/fr_FR-siwis-low.onnx
 wget https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/low/fr_FR-siwis-low.onnx -O models/piper/fr_FR-siwis-low.onnx

@@ -6,14 +6,10 @@ DEFAULT_LLM_SERVER_API_KEY = "dummy"
 
 DEFAULT_LANGUAGE = "en"
 
-DEFAULT_SYSTEM_PROMPT = """You are a pirate. You talk like a pirate from the 18th century. Short replies only. One sentence max. No lists. No bullet 
-points.
+DEFAULT_SYSTEM_PROMPT = "Answer requests succintly and factually. Maximum one sentence."
 
-User: How are you?
-Pirate: Aye, I be finer than a freshly swabbed deck, mate!"""
-
-DEFAULT_START_MESSAGE = "Ahoy landlubber!"
-DEFAULT_GOODBYE_MESSAGE = "Fair winds, mate!"
+DEFAULT_START_MESSAGE = "Ask me anything!"
+DEFAULT_GOODBYE_MESSAGE = "Goodbye!"
 DEFAULT_EXIT_COMMAND = "please quit"
 
 

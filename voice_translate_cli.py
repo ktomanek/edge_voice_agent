@@ -18,7 +18,6 @@
 #   Language switching keys:
 #     g = German    (speaks "Bereit!")
 #     s = Spanish   (speaks "Listo!")
-#     a = Arabic    (speaks "Mustaeidd!")
 #     f = French    (speaks "Pret!")
 #
 #   Verbose mode (debug output):
@@ -42,27 +41,20 @@ print(f">> -- All imports done in {time.time() - start_time:.2f} seconds -- <<")
 LANGUAGE_CONFIGS = {
     'german': {
         "lang": "German",
-        # "tts_model": "models/piper/de_DE-eva_k-x_low.onnx",
         "tts_model": "models/piper/de_DE-thorsten-low.onnx",
-        "prompt": "Translate the following into German. Your response should only contain a single translation (no context, commentary, or explanation):",
+        "prompt": "Translate the following into German. Give only one option, no explanations:",
         "ready_message": "Ich bin bereit!"
     },
     'spanish': {
         "lang": "Spanish",
         "tts_model": "models/piper/es_ES-carlfm-x_low.onnx",
-        "prompt": "Translate the following into Spanish. Your response should only contain a single translation (no context, commentary, or explanation):",
+        "prompt": "Translate the following into Spanish. Give only one option, no explanations:",
         "ready_message": "Estoy listo!"
-    },
-    'arabic': {
-        "lang": "Arabic",
-        "tts_model": "models/piper/ar_JO-kareem-low.onnx",
-        "prompt": "Translate the following into Levantine Arabic. Your response should only contain a single translation (no context, commentary, or explanation):",
-        "ready_message": "Mustaeidd!"
     },
     'french': {
         "lang": "French",
         "tts_model": "models/piper/fr_FR-siwis-low.onnx",
-        "prompt": "Translate the following into French. Your response should only contain a single translation (no context, commentary, or explanation):",
+        "prompt": "Translate the following into French. Give only one option, no explanations:",
         "ready_message": "Je suis pret!"
     },
 }
@@ -71,7 +63,6 @@ LANGUAGE_CONFIGS = {
 LANGUAGE_KEYS = {
     'g': 'german',
     's': 'spanish',
-    'a': 'arabic',
     'f': 'french',
 }
 
@@ -192,9 +183,9 @@ def main():
         # Add ENTER for interrupt if --enable_keyboard_control is set
         if args.enable_keyboard_control:
             key_callbacks['enter'] = on_output_interrupt
-            print("Keyboard controls: ENTER=interrupt | g=German, s=Spanish, a=Arabic, f=French")
+            print("Keyboard controls: ENTER=interrupt | g=German, s=Spanish, f=French")
         else:
-            print("Keyboard controls: g=German, s=Spanish, a=Arabic, f=French")
+            print("Keyboard controls: g=German, s=Spanish, f=French")
 
         user_interaction_handler.setup_keyboard_controls(key_callbacks)
     

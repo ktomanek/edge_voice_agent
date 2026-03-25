@@ -129,6 +129,18 @@ def main():
     print(">> Initializing Voice Agent and components <<")
     va = VoiceAgent()
 
+    va.init_AudioToText(
+        asr_model_name=args.asr_model_name,
+        asr_model_path=args.asr_model_path if args.asr_model_path else None,
+        disable_partials=args.disable_partials,
+        language=args.language,
+        min_partial_duration=args.min_partial_duration,
+        end_of_utterance_duration=args.end_of_utterance_duration,
+        verbose=args.verbose,
+        printer=user_interaction_handler
+    )
+    print(f">> Initialized AudioToTextInput in {time.time() - start_time:.2f} seconds -- <<")
+
     va.init_LLmToAudioOutput(
         llm_server_url=args.llm_server_url,
         system_prompt=start_system_prompt,
@@ -142,18 +154,8 @@ def main():
         single_turn=True,  # Each translation is independent, no context needed
         printer=agent_interaction_handler
     )
+    print(f">> Initialized LLmToAudioOutput in {time.time() - start_time:.2f} seconds -- <<")
 
-
-    va.init_AudioToText(
-        asr_model_name=args.asr_model_name,
-        asr_model_path=args.asr_model_path if args.asr_model_path else None,
-        disable_partials=args.disable_partials,
-        language=args.language,
-        min_partial_duration=args.min_partial_duration,
-        end_of_utterance_duration=args.end_of_utterance_duration,
-        verbose=args.verbose,
-        printer=user_interaction_handler
-    )
     va.start()
     print(f">> Took {time.time()-t1:.2f} secs to initialize Voice Agent <<")
 

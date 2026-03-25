@@ -5,7 +5,7 @@
 #   python voice_agent_cli.py
 #
 #   With keyboard controls:
-#     python voice_agent_cli.py --enable_keyboard_control
+#     python voice_agent_cli.py a
 #
 #   With GPIO interrupt button on Raspberry Pi 5:
 #     python voice_agent_cli.py --platform rpi5
@@ -64,6 +64,18 @@ def main():
         gpio_handler.setup(add_interrupt_button=True, add_rotary_dial=False)
         print(f">> GPIO handler: {gpio_handler.__class__.__name__}")
 
+    va.init_AudioToText(
+        asr_model_name=args.asr_model_name,
+        asr_model_path=args.asr_model_path if args.asr_model_path else None,
+        disable_partials=args.disable_partials,
+        language=args.language,
+        min_partial_duration=args.min_partial_duration,
+        end_of_utterance_duration=args.end_of_utterance_duration,
+        verbose=args.verbose,
+        printer=user_interaction_handler
+    )
+    print(f">> Initialized AudioToTextInput in {time.time() - start_time:.2f} seconds -- <<")
+
     va.init_LLmToAudioOutput(
         llm_server_url=args.llm_server_url,
         system_prompt=args.system_prompt,
@@ -77,18 +89,8 @@ def main():
         single_turn=False,  # Conversational agent keeps history
         printer=agent_interaction_handler
     )
+    print(f">> Initialized LLmToAudioOutput in {time.time() - start_time:.2f} seconds -- <<")
 
-
-    va.init_AudioToText(
-        asr_model_name=args.asr_model_name,
-        asr_model_path=args.asr_model_path if args.asr_model_path else None,
-        disable_partials=args.disable_partials,
-        language=args.language,
-        min_partial_duration=args.min_partial_duration,
-        end_of_utterance_duration=args.end_of_utterance_duration,
-        verbose=args.verbose,
-        printer=user_interaction_handler
-    )
     va.start()
     print(f">> Took {time.time()-t1:.2f} secs to initialize Voice Agent <<")
 

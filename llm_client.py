@@ -263,6 +263,34 @@ class LLMClient:
         self.models = ModelsAPI(self.base_url, self.api_key, self.http_client)
         self.chat = ChatAPI(self.base_url, self.api_key, self.http_client)
 
+    def health(self) -> bool:
+        """Check if the LLM server is healthy and ready."""
+        try:
+            # llama.cpp uses /health endpoint (not under /v1)
+            base = self.base_url.replace('/v1', '')
+            response = self.http_client.get(f"{base}/health", timeout=5.0)
+            return response.status_code == 200
+        except (httpx.ConnectError, httpx.TimeoutException):
+            return False
+
+    def wait_for_ready(self, max_retries: int = 30, retry_delay: float = 2.0) -> bool:
+        """Wait for the LLM server to be ready.
+
+        Args:
+            max_retries: Maximum number of attempts
+            retry_delay: Seconds between retries
+
+        Returns:
+            True if server is ready, raises ConnectionError otherwise
+        """
+        import time
+        for attempt in range(max_retries):
+            if self.health():
+                return True
+            print(f">> Waiting for LLM server at {self.base_url}... ({attempt + 1}/{max_retries})")
+            time.sleep(retry_delay)
+        raise ConnectionError(f"LLM server at {self.base_url} not ready after {max_retries} attempts")
+
     def close(self):
         """Explicitly close the HTTP client and clean up resources."""
         if hasattr(self, 'http_client') and self.http_client is not None:

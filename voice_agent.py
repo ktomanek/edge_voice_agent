@@ -105,6 +105,7 @@ class LLmToAudio:
         ## Init LLM and prompts
         self.llm_server_url = llm_server_url
         self.llm_client = LLMClient(base_url=llm_server_url, api_key=voice_agent_utils.DEFAULT_LLM_SERVER_API_KEY)
+        self.llm_client.wait_for_ready(max_retries=30, retry_delay=1.0)
         self.system_prompt = system_prompt
         self.start_message = start_message
         self.messages = [

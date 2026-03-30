@@ -259,10 +259,10 @@ def main():
         user_interaction_handler.setup_keyboard_controls(key_callbacks)
     
     # -- rotary switch integration via gpio_handler --
+    # Delay to avoid queuing languages during dial turn
+    switch_state = {'timer': None}
+    SETTLE_DELAY = 0.3
     if gpio_handler:
-        # Delay to avoid queuing languages during dial turn
-        switch_state = {'timer': None}
-        SETTLE_DELAY = 0.3
 
         def on_language_change(lang_name):
             if switch_state['timer'] is not None:
@@ -284,6 +284,9 @@ def main():
     try:
         va.run()
     finally:
+        # Cancel any pending language change timer
+        if switch_state.get('timer'):
+            switch_state['timer'].cancel()
         # Clean up GPIO handler
         if gpio_handler:
             gpio_handler.cleanup()

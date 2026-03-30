@@ -199,19 +199,14 @@ class LLmToAudio:
         # Increment generation ID to invalidate any in-flight sentences
         self._generation_id += 1
 
-        # Print and clear sentence queue - show user what was going to be said
+        # Clear sentence queue and buffer (already printed when queued)
         with self.lock:
             while not self.sentence_queue.empty():
                 try:
-                    sentence = self.sentence_queue.get_nowait()
-                    # Print the unspoken text so user can see it
-                    self.assistant_printer.print(sentence, partial=False)
+                    self.sentence_queue.get_nowait()
                     self.sentence_queue.task_done()
                 except:
                     pass
-            # Print any remaining text in buffer
-            if self.text_buffer.strip():
-                self.assistant_printer.print(self.text_buffer, partial=False)
             self.text_buffer = ""
 
         # Acquire audio write lock to wait for any in-progress write to complete

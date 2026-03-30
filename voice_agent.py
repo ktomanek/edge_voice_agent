@@ -147,6 +147,9 @@ class LLmToAudio:
         self.stop_event = threading.Event()
         self.interrupt_event = threading.Event()
         self.lock = threading.Lock()
+        self._tts_lock = threading.Lock()  # Protects TTS synthesis and model switching
+        self._audio_write_lock = threading.Lock()  # Protects audio stream writes
+        self._generation_id = 0  # Incremented on interrupt to discard stale sentences
 
         # Signal handlers for graceful termination
         if threading.current_thread() is threading.main_thread():
@@ -191,6 +194,9 @@ class LLmToAudio:
         """Interrupt current speech and return to listening."""
         self.interrupt_event.set()
 
+        # Increment generation ID to invalidate any in-flight sentences
+        self._generation_id += 1
+
         # Print and clear sentence queue - show user what was going to be said
         with self.lock:
             while not self.sentence_queue.empty():
@@ -206,6 +212,9 @@ class LLmToAudio:
                 self.assistant_printer.print(self.text_buffer, partial=False)
             self.text_buffer = ""
 
+        # Acquire audio write lock to wait for any in-progress write to complete
+        # This prevents audio glitches/mumbling from aborting mid-write
+        with self._audio_write_lock:
             # Abort audio stream to stop playback immediately
             if self.audio_stream:
                 try:
@@ -298,10 +307,10 @@ class LLmToAudio:
     
     def _start_sentence_processor(self):
         """Start a background thread to process sentences."""
-        if self.is_processing:
-            return
-            
-        self.is_processing = True
+        with self.lock:
+            if self.is_processing:
+                return
+            self.is_processing = True
         threading.Thread(target=self._process_sentences, daemon=True).start()
         
     def _get_max_buffer_words_before_speaking(self):
@@ -393,16 +402,38 @@ class LLmToAudio:
         """Process sentences from the queue and speak them."""
         self._start_audio_stream()
 
+        # Capture generation ID at start of processing
+        my_generation = self._generation_id
+
         try:
             while not self.stop_event.is_set() and not self.interrupt_event.is_set():
                 try:
                     sentence = self.sentence_queue.get(timeout=0.5)
 
+                    # Check if this sentence is stale (interrupt happened after enqueue)
+                    if self._generation_id != my_generation:
+                        self._info(f"Discarding stale sentence (gen {my_generation} vs {self._generation_id})")
+                        self.sentence_queue.task_done()
+                        break
+
+                    # Re-check interrupt immediately after dequeue
+                    if self.stop_event.is_set() or self.interrupt_event.is_set():
+                        self.sentence_queue.task_done()
+                        break
+
                     # Wait until not speaking to avoid overlap
                     while self.is_speaking and not self.stop_event.is_set() and not self.interrupt_event.is_set():
                         time.sleep(0.05)
-                    
+
+                    # Final check before speaking
                     if self.stop_event.is_set() or self.interrupt_event.is_set():
+                        self.sentence_queue.task_done()
+                        break
+
+                    # Check generation ID again right before speaking
+                    if self._generation_id != my_generation:
+                        self._info(f"Discarding stale sentence before speak")
+                        self.sentence_queue.task_done()
                         break
 
                     # Speak new sentence
@@ -414,7 +445,8 @@ class LLmToAudio:
                         break
 
         finally:
-            self.is_processing = False
+            with self.lock:
+                self.is_processing = False
 
             # If there are still sentences and we're not stopped/interrupted, restart processor
             if not self.sentence_queue.empty() and not self.stop_event.is_set() and not self.interrupt_event.is_set():
@@ -433,9 +465,15 @@ class LLmToAudio:
 
         try:
             self._info(f"Speaking: {text}")
-            audio_data, sample_rate = self.tts.synthesize(
-                text, target_sr = self.sample_rate,
-                speaking_rate=speed, return_as_int16=True)
+
+            # Protect TTS synthesis with lock to prevent model swap during synthesis
+            with self._tts_lock:
+                # Re-check interrupt inside lock (model swap waits for this lock)
+                if self.interrupt_event.is_set():
+                    return
+                audio_data, _ = self.tts.synthesize(
+                    text, target_sr=self.sample_rate,
+                    speaking_rate=speed, return_as_int16=True)
 
             # Check again before writing
             if self.interrupt_event.is_set():
@@ -448,16 +486,21 @@ class LLmToAudio:
                     self._info("Audio stream not ready, skipping write")
                     return
 
-            # Write audio (outside lock to avoid blocking)
-            try:
-                self.audio_stream.write(audio_data)
-                # Optionally wait for audio to finish playing
-                if wait_for_completion:
-                    audio_duration = len(audio_data) / self.sample_rate
-                    time.sleep(audio_duration)
-            except Exception as e:
-                if not self.interrupt_event.is_set():
-                    self._info(f"Error writing audio: {e}")
+            # Write audio with lock to prevent abort during write
+            with self._audio_write_lock:
+                # Final interrupt check before write
+                if self.interrupt_event.is_set():
+                    return
+                try:
+                    self.audio_stream.write(audio_data)
+                except Exception as e:
+                    if not self.interrupt_event.is_set():
+                        self._info(f"Error writing audio: {e}")
+
+            # Optionally wait for audio to finish playing (outside lock)
+            if wait_for_completion:
+                audio_duration = len(audio_data) / self.sample_rate
+                time.sleep(audio_duration)
         except Exception as e:
             if not self.interrupt_event.is_set():
                 self._info(f"Error during speech: {e}")
@@ -617,6 +660,9 @@ class LLmToAudio:
                 except:
                     pass
 
+        # Acquire TTS lock to wait for any in-progress synthesis to complete
+        # This prevents segfaults from swapping model during ONNX inference
+        with self._tts_lock:
             # Check if model is already cached
             if tts_model_path in self._tts_cache:
                 self._info(f"Using cached TTS model: {tts_model_path}")
@@ -629,8 +675,10 @@ class LLmToAudio:
                 self.tts = new_tts
 
             self.sample_rate = self.tts.get_sample_rate()
-            print(f">> TTS model switched in {time.time() - t_start:.2f} secs")
 
+        print(f">> TTS model switched in {time.time() - t_start:.2f} secs")
+
+        with self.lock:
             # Update the prompt and wipe the conversation history
             self.system_prompt = new_system_prompt
             self.messages = [{'role': 'system', 'content': self.system_prompt}]
@@ -693,6 +741,7 @@ class AudioToText:
         # Transcription thread
         self.stop_event = threading.Event()
         self.interrupt_event = threading.Event()  # For aborting current input
+        self._stream_lock = threading.Lock()  # Prevents stream start during interrupt
         self.transcription_handler = captioning_utils.TranscriptionWorker(
             sampling_rate=captioning_utils.SAMPLING_RATE)
 
@@ -752,12 +801,35 @@ class AudioToText:
 
 
     def mute(self):
-        """Temporarily stop the audio input stream without destroying it"""
+        """Temporarily stop the audio input stream and clear buffers"""
+        # Stop stream if active
         if self.input_audio_stream and self.input_audio_stream.active:
             self.input_audio_stream.stop()
-            self._info("Audio input stream muted")
-            return True
-        return False
+            self._info("Audio input stream stopped")
+
+        # Always clear buffers (even if stream was already stopped)
+        try:
+            while True:
+                self.audio_queue.get_nowait()
+        except queue.Empty:
+            pass
+
+        # Reset transcription state
+        self.transcription_handler.reset()
+        self.vad.reset_states()
+
+        # Wait for worker to finish processing its local buffer (max 200ms)
+        # Worker sets is_speech_recording=False when done with a segment
+        for _ in range(20):
+            if not self.transcription_handler.is_speech_recording:
+                break
+            time.sleep(0.01)
+
+        # Reset again to discard any transcriptions worker produced from stale audio
+        self.transcription_handler.reset()
+
+        self._info("Audio buffers cleared")
+        return True
 
     def unmute(self):
         """Resume the audio input stream if it exists"""
@@ -772,6 +844,14 @@ class AudioToText:
         if self.input_audio_stream:
             return not self.input_audio_stream.active
         return True  # If no stream exists, consider it muted
+
+    def acquire_stream_lock(self):
+        """Acquire stream lock to prevent get_speech_input from starting stream."""
+        self._stream_lock.acquire()
+
+    def release_stream_lock(self):
+        """Release stream lock."""
+        self._stream_lock.release()
 
     def interrupt(self):
         """Interrupt current input and discard partial transcription.
@@ -837,8 +917,10 @@ class AudioToText:
 
         try:
             # Start stream for listening (callback will feed queue)
-            if not self.input_audio_stream.active:
-                self.input_audio_stream.start()
+            # Use lock to prevent starting while interrupt callback is draining audio
+            with self._stream_lock:
+                if not self.input_audio_stream.active:
+                    self.input_audio_stream.start()
             self._info(f">>> START input audio stream active: {self.input_audio_stream.active}")
 
             while True:
@@ -945,7 +1027,16 @@ class VoiceAgent():
             else:
                 if self.stop_event_set():
                     break
-                self.output_handler.process_prompt(user_input_transcribed)
+
+                # Mute mic while agent is speaking to prevent echo/feedback
+                self.mute_microphone()
+                try:
+                    self.output_handler.process_prompt(user_input_transcribed)
+                finally:
+                    # Only unmute if not interrupted (interrupt callback handles unmute timing)
+                    if not self.output_handler.interrupt_event.is_set():
+                        self.unmute_microphone()
+
                 time.sleep(0.3)    
 
     def trigger_stop_events(self):
@@ -985,40 +1076,47 @@ class VoiceAgent():
         try:
             self._info(f"Changing language to {lang_config['lang']}")
 
-            # 1. Interrupt input FIRST to discard partial speech immediately
-            #    (before output_handler.interrupt()'s 0.5s sleep)
-            self.input_handler.interrupt()
+            # Acquire stream lock to prevent get_speech_input from starting mic
+            # while we're changing language and speaking ready message
+            self.input_handler.acquire_stream_lock()
+            try:
+                # 1. Interrupt input FIRST to discard partial speech immediately
+                #    (before output_handler.interrupt()'s 0.5s sleep)
+                self.input_handler.interrupt()
 
-            # 2. Interrupt any ongoing output to avoid audio overlap
-            self.output_handler.interrupt()
+                # 2. Interrupt any ongoing output to avoid audio overlap
+                self.output_handler.interrupt()
 
-            # 3. Mute mic to prevent picking up our own speech
-            was_muted = self.is_microphone_muted()
-            if not was_muted:
-                self.mute_microphone()
+                # 3. Mute mic to prevent picking up our own speech
+                was_muted = self.is_microphone_muted()
+                if not was_muted:
+                    self.mute_microphone()
 
-            # 4. Update TTS model and prompt
-            self.output_handler.update_language_context(
-                tts_model_path=lang_config['tts_model'],
-                new_system_prompt=lang_config['prompt']
-            )
+                # 4. Update TTS model and prompt
+                self.output_handler.update_language_context(
+                    tts_model_path=lang_config['tts_model'],
+                    new_system_prompt=lang_config['prompt']
+                )
 
-            # 5. Clear interrupt event so we can speak the ready message
-            self.output_handler.interrupt_event.clear()
+                # 5. Clear interrupt event so we can speak the ready message
+                self.output_handler.interrupt_event.clear()
 
-            # 6. Speak ready message and wait for completion
-            self.output_handler._start_audio_stream()
-            self.output_handler._speak_sentence(lang_config['ready_message'])
-            self.output_handler._finish_processing()
+                # 6. Speak ready message and wait for audio to fully play
+                self.output_handler._start_audio_stream()
+                self.output_handler._speak_sentence(lang_config['ready_message'], wait_for_completion=True)
+                self.output_handler._finish_processing()
 
-            # 7. Clear input interrupt event (language change complete)
-            self.input_handler.interrupt_event.clear()
+                # 7. Clear input interrupt event (language change complete)
+                self.input_handler.interrupt_event.clear()
 
-            # 8. Unmute and return to listening
-            if not was_muted:
-                self.unmute_microphone()
+                # 8. Unmute and return to listening
+                if not was_muted:
+                    self.unmute_microphone()
+            finally:
+                # 9. Release stream lock so get_speech_input can restart mic
+                self.input_handler.release_stream_lock()
 
-            # 9. Cooldown to let native ONNX resources settle before allowing next change
+            # 10. Cooldown to let native ONNX resources settle before allowing next change
             time.sleep(0.3)
         finally:
             self._language_change_lock.release()                        

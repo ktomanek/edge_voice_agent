@@ -100,14 +100,34 @@ def main():
     # Define interrupt callback (used by both GPIO button and keyboard)
     interrupt_count = {'n': 0}
     def on_output_interrupt():
-        """Interrupt agent's speech output."""
+        """Interrupt agent's speech output and discard pending input."""
         interrupt_count['n'] += 1
         if args.verbose:
             print(f"\n[Interrupted #{interrupt_count['n']}] at {time.time():.2f}")
-        va.output_handler.interrupt()
-        if hasattr(user_interaction_handler, 'show_interrupted'):
-            user_interaction_handler.show_interrupted()
-            time.sleep(0.3)
+
+        # Acquire stream lock to prevent get_speech_input from starting mic
+        # while we're draining audio
+        va.input_handler.acquire_stream_lock()
+        try:
+            # Interrupt input to discard any partial transcription
+            va.input_handler.interrupt()
+
+            # Interrupt output to stop speech (includes 0.5s audio drain wait)
+            va.output_handler.interrupt()
+
+            if hasattr(user_interaction_handler, 'show_interrupted'):
+                user_interaction_handler.show_interrupted()
+                time.sleep(0.3)
+
+            # Clear interrupt events so we can listen/speak again
+            va.input_handler.interrupt_event.clear()
+            va.output_handler.interrupt_event.clear()
+
+            # Unmute mic now that audio has fully drained
+            va.unmute_microphone()
+        finally:
+            va.input_handler.release_stream_lock()
+
         user_interaction_handler.start()
         if args.verbose:
             print(f"[Interrupt #{interrupt_count['n']} done]")

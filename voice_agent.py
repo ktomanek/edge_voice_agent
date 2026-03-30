@@ -548,8 +548,6 @@ class LLmToAudio:
                 except Exception as e:
                     self._info(f"Error stopping audio stream: {e}")
 
-        # Give a moment for system audio buffer to fully drain
-        time.sleep(0.3)
     
 
     def process_prompt(self, user_prompt):
@@ -895,8 +893,6 @@ class AudioToText:
         With callback mode, audio is captured in background thread automatically.
         This method just monitors for end-of-utterance.
         """
-        # Small delay to ensure any system audio has finished
-        time.sleep(0.1)
 
         # Clear any residual audio in the queue (e.g., from agent speech picked up by mic)
         cleared_count = 0
@@ -1035,9 +1031,7 @@ class VoiceAgent():
                 finally:
                     # Only unmute if not interrupted (interrupt callback handles unmute timing)
                     if not self.output_handler.interrupt_event.is_set():
-                        self.unmute_microphone()
-
-                time.sleep(0.3)    
+                        self.unmute_microphone()    
 
     def trigger_stop_events(self):
         self.input_handler.stop_event.set()

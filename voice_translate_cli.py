@@ -211,7 +211,6 @@ def main():
 
             if hasattr(user_interaction_handler, 'show_interrupted'):
                 user_interaction_handler.show_interrupted()
-                time.sleep(0.3)
 
             # Clear interrupt events so we can listen/speak again
             va.input_handler.interrupt_event.clear()

@@ -15,6 +15,9 @@
 #   With GPIO on Orange Pi 5 Pro:
 #     python voice_translate_cli.py --platform opi5
 #
+#   Preload all TTS models for faster language switching:
+#     python voice_translate_cli.py --preload-tts
+#
 #   Language switching keys:
 #     g = German    (speaks "Bereit!")
 #     s = Spanish   (speaks "Listo!")
@@ -33,6 +36,7 @@ print("Loading Voice Agent...")
 import sys
 from voice_agent import VoiceAgent
 import voice_agent_utils
+from tts_lib import tts_engines
 from voice_agent_interaction_handlers import get_handler
 
 print(f">> -- All imports done in {time.time() - start_time:.2f} seconds -- <<")
@@ -68,10 +72,40 @@ LANGUAGE_KEYS = {
 
 DEFAULT_OUTPUT_LANGUAGE = 'spanish'
 
+def preload_tts_models(language_configs, verbose=False):
+    """Preload all TTS models into a cache dictionary.
+
+    Args:
+        language_configs: dict of language configurations with 'tts_model' keys
+        verbose: whether to print progress info
+
+    Returns:
+        dict mapping model paths to loaded TTS instances
+    """
+    tts_cache = {}
+    print(">> Preloading all TTS models...")
+    t_start = time.time()
+
+    for lang_name, config in language_configs.items():
+        model_path = config['tts_model']
+        if model_path not in tts_cache:
+            t1 = time.time()
+            if verbose:
+                print(f"   Loading {lang_name}: {model_path}")
+            tts_cache[model_path] = tts_engines.TTS_Piper(model_path, warmup=False)
+            if verbose:
+                print(f"   Loaded in {time.time() - t1:.2f} secs")
+
+    print(f">> All {len(tts_cache)} TTS models preloaded in {time.time() - t_start:.2f} secs")
+    return tts_cache
+
+
 def main():
     """Main function to run the LLM to Audio output streamer."""
 
     parser = voice_agent_utils.get_cli_argument_parser()
+    parser.add_argument("--preload-tts", action="store_true", default=False,
+                        help="Preload all TTS models at startup for faster language switching")
     args = parser.parse_args()
 
     voice_agent_utils.apply_audio_device_settings(args)
@@ -113,7 +147,10 @@ def main():
     start_ready_message = start_config["ready_message"]
     start_tts_model_path = start_config["tts_model"]
 
-
+    # Preload all TTS models if requested
+    tts_cache = None
+    if args.preload_tts:
+        tts_cache = preload_tts_models(LANGUAGE_CONFIGS, verbose=args.verbose)
 
     # initialize voice agent components
     t1 = time.time()
@@ -139,6 +176,7 @@ def main():
         tts_engine=args.tts_engine,
         speaking_rate=args.speaking_rate,
         tts_model_path=start_tts_model_path,
+        tts_cache=tts_cache,
         max_words_to_speak_start=args.max_words_to_speak_start,
         max_words_to_speak=args.max_words_to_speak,
         verbose=args.verbose,

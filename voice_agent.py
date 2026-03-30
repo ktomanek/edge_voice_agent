@@ -48,13 +48,14 @@ class LLmToAudio:
         print(f"LLM: {model.id}, via: {model.owned_by}")
 
 
-    def __init__(self, 
+    def __init__(self,
                  llm_server_url=voice_agent_utils.DEFAULT_LLM_SERVER_URL,
                  system_prompt=voice_agent_utils.DEFAULT_SYSTEM_PROMPT,
                  start_message=voice_agent_utils.DEFAULT_START_MESSAGE,
                  tts_engine='piper',
                  speaking_rate=1.0, # higher numbers means faster
                  tts_model_path=None,
+                 tts_cache=None,  # pre-loaded TTS models dict {model_path: tts_instance}
                  max_words_to_speak_start=5,  # make sure that we get to speak quickly at the beginning
                  max_words_to_speak=15, # later speak at last after this many words, or when a sentence is finished
                  verbose=False,
@@ -71,18 +72,22 @@ class LLmToAudio:
         assert self.max_words_to_speak_start <= self.max_words_to_speak
 
         t1 = time.time()
-        if tts_engine == 'piper':
+        # Check if model is already in pre-loaded cache
+        if tts_cache and tts_model_path and tts_model_path in tts_cache:
+            print(f'Using pre-loaded TTS model: {tts_model_path}')
+            self.tts = tts_cache[tts_model_path]
+        elif tts_engine == 'piper':
             print('Initializing Piper TTS')
             if tts_model_path:
                 self.tts = tts_engines.TTS_Piper(tts_model_path, warmup=False)
-                print(f"Using tts model: {tts_model_path}")                
+                print(f"Using tts model: {tts_model_path}")
             else:
                 self.tts = tts_engines.TTS_Piper(warmup=False)
                 print(f"Using default Piper model: {self.tts.model_path}")
         elif tts_engine == 'kokoro':
             print('Initializing Kokoro TTS')
             if tts_model_path:
-                print(f"Initializing with tts model: {tts_model_path}")                
+                print(f"Initializing with tts model: {tts_model_path}")
                 self.tts = tts_engines.TTS_Kokoro(tts_model_path)
             else:
                 self.tts = tts_engines.TTS_Kokoro()
@@ -95,7 +100,8 @@ class LLmToAudio:
         print(f"> TTS initialized in {time.time()-t1:.2f} secs.")
 
         # Cache for TTS models to avoid reloading on language switch
-        self._tts_cache = {}
+        # Use pre-loaded cache if provided, otherwise start fresh
+        self._tts_cache = tts_cache if tts_cache is not None else {}
         if tts_model_path:
             self._tts_cache[tts_model_path] = self.tts
 

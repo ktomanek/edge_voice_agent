@@ -65,11 +65,6 @@
 #### Nvidia ASR
 * if you want to use Nvidia's ASR models (nemo): ```pip install "nemo_toolkit[asr]"```
 
-#### For UI
-* CLI should work on all environments
-* the UI is based on tkinter (customtkinter), which should run seamlessly on Linux; on MacOs it might be necessary to download python from https://www.python.org/downloads/macos and use this python version instead of one installed by homebrew (ie, create your python environment with the newly installed version of python, which sould be found under eg ```/usr/local/bin/python3.12```)
-* for running the TKInter UI you might need to install a tk-enabled python version: ```sudo apt install python3-tk```
-
 
 ## CLI command line arguments
 
@@ -170,10 +165,9 @@ See [Raspberry Pi 5 Pinout](https://vilros.com/pages/raspberry-pi-5-pinout) for 
 | Interrupt Button | 22 | 15 |
 | Rotary: German | 23 | 16 |
 | Rotary: Spanish | 24 | 18 |
-| Rotary: Arabic | 25 | 22 |
 | Rotary: French | 27 | 13 |
 
-Note: These pins are chosen to avoid conflicts with the ReSpeaker 2-Mic HAT (which uses GPIO 5, 6, 12, 13 for LEDs and GPIO 17-21 for button/I2S audio).
+Note: These pins are chosen to avoid conflicts with the [ReSpeaker 2-Mic HAT](https://pinout.xyz/pinout/respeaker_2_mics_phat).
 
 **Orange Pi 5 Pro (`opi5`)**
 
@@ -184,7 +178,6 @@ See [Orange Pi 5 Pro](http://www.orangepi.org/html/hardWare/computerAndMicrocont
 | Interrupt Button | 14 |
 | Rotary: German | 13 |
 | Rotary: Spanish | 15 |
-| Rotary: Arabic | 12 |
 | Rotary: French | 8 |
 
 #### Installation

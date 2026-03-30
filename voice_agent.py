@@ -58,6 +58,7 @@ class LLmToAudio:
                  tts_cache=None,  # pre-loaded TTS models dict {model_path: tts_instance}
                  max_words_to_speak_start=5,  # make sure that we get to speak quickly at the beginning
                  max_words_to_speak=15, # later speak at last after this many words, or when a sentence is finished
+                 split_on_punctuation=True,  # split at commas/colons for low-latency; False for translation mode
                  verbose=False,
                  printer=None,
                  single_turn=False
@@ -69,6 +70,7 @@ class LLmToAudio:
         # Init TTS
         self.max_words_to_speak_start = max_words_to_speak_start
         self.max_words_to_speak = max_words_to_speak
+        self.split_on_punctuation = split_on_punctuation
         assert self.max_words_to_speak_start <= self.max_words_to_speak
 
         t1 = time.time()
@@ -247,11 +249,8 @@ class LLmToAudio:
         Remove formatting symbols we don't want to be spoken.
         """
         text = text.replace('*', ' ')
-        # Remove weird newlines after punctuation (tiny LLMs often do this)
-        # But keep newlines after complete items (for lists)
-        text = re.sub(r',\s*\n', ', ', text)  # comma + newline -> comma + space
-        text = re.sub(r':\s*\n', ': ', text)  # colon + newline -> colon + space
-        text = re.sub(r';\s*\n', '; ', text)  # semicolon + newline -> semicolon + space
+        # Replace all newlines with spaces (prevents TTS issues with line breaks)
+        text = text.replace('\n', ' ')
         # Collapse multiple spaces into one
         text = re.sub(r' +', ' ', text)
         # Remove emojis using regex (faster than emoji library)
@@ -324,8 +323,8 @@ class LLmToAudio:
             return self.max_words_to_speak
 
     def _has_natural_break_point(self, text):
-        """Check if text has natural break points like punctuation marks followed by space or newlines."""
-        break_patterns = ['\n', ', ', '; ', ': ', '! ', '? ', '. ', ' - ', ' – ', ' — ']
+        """Check if text has natural break points like punctuation marks followed by space."""
+        break_patterns = [', ', '; ', ': ', '! ', '? ', '. ', ' - ', ' – ', ' — ']
         return any(pattern in text for pattern in break_patterns)
 
     def _process_text_chunk(self, text_chunk):
@@ -362,11 +361,10 @@ class LLmToAudio:
                                 self._info(f"\n>> Time to first speech fragment (organic): {self.time_to_first_speech_fragment:.2f} seconds")
                             self.first_speech_fragment_finalized = True
 
-                elif (len(self.text_buffer_words) > self._get_max_buffer_words_before_speaking() or 
-                      (self._has_natural_break_point(self.text_buffer) and len(self.text_buffer_words) >= 1)):
+                elif (len(self.text_buffer_words) > self._get_max_buffer_words_before_speaking() or
+                      (self.split_on_punctuation and self._has_natural_break_point(self.text_buffer) and len(self.text_buffer_words) >= 1)):
                     # Look for natural break points
                     break_points = [
-                        self.text_buffer.rfind('\n'),  # newlines are strong break points
                         self.text_buffer.rfind(', '),
                         self.text_buffer.rfind(' - '),
                         self.text_buffer.rfind(': '),

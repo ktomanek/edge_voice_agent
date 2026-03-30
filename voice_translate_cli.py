@@ -41,24 +41,28 @@ from voice_agent_interaction_handlers import get_handler
 
 print(f">> -- All imports done in {time.time() - start_time:.2f} seconds -- <<")
 
+# Translation mode uses fixed word limits to avoid premature sentence splitting
+# Complete sentences (with . ! ?) still speak immediately via sentence detection
+TRANSLATION_MAX_WORDS = 15
+
 # Language configurations for translation
 LANGUAGE_CONFIGS = {
     'german': {
         "lang": "German",
         "tts_model": "models/piper/de_DE-thorsten-low.onnx",
-        "prompt": "Translate the following into German. Give only one option, no explanations:",
+        "prompt": "Translate the following into German. Give only the translation on a single line, no explanations:",
         "ready_message": "Ich bin bereit!"
     },
     'spanish': {
         "lang": "Spanish",
         "tts_model": "models/piper/es_ES-carlfm-x_low.onnx",
-        "prompt": "Translate the following into Spanish. Give only one option, no explanations:",
+        "prompt": "Translate the following into Spanish. Give only the translation on a single line, no explanations:",
         "ready_message": "Estoy listo!"
     },
     'french': {
         "lang": "French",
         "tts_model": "models/piper/fr_FR-siwis-low.onnx",
-        "prompt": "Translate the following into French. Give only one option, no explanations:",
+        "prompt": "Translate the following into French. Give only the translation on a single line, no explanations:",
         "ready_message": "Je suis pret!"
     },
 }
@@ -107,6 +111,11 @@ def main():
     parser.add_argument("--preload-tts", action="store_true", default=False,
                         help="Preload all TTS models at startup for faster language switching")
     args = parser.parse_args()
+
+    # Warn if user set max_words arguments (they are ignored in translation mode)
+    if args.max_words_to_speak_start != 5 or args.max_words_to_speak != 20:
+        print(f">> WARNING: --max_words_to_speak_start and --max_words_to_speak are ignored in translation mode.")
+        print(f">>          Using TRANSLATION_MAX_WORDS={TRANSLATION_MAX_WORDS} instead.")
 
     voice_agent_utils.apply_audio_device_settings(args)
 
@@ -177,8 +186,11 @@ def main():
         speaking_rate=args.speaking_rate,
         tts_model_path=start_tts_model_path,
         tts_cache=tts_cache,
-        max_words_to_speak_start=args.max_words_to_speak_start,
-        max_words_to_speak=args.max_words_to_speak,
+        # For translation mode, disable splitting at commas/punctuation
+        # Complete sentences (with . ! ?) still speak immediately via get_sentences()
+        max_words_to_speak_start=TRANSLATION_MAX_WORDS,
+        max_words_to_speak=TRANSLATION_MAX_WORDS,
+        split_on_punctuation=False,
         verbose=args.verbose,
         single_turn=True,  # Each translation is independent, no context needed
         printer=agent_interaction_handler

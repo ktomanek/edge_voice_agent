@@ -228,12 +228,9 @@ def main():
             if hasattr(user_interaction_handler, 'show_interrupted'):
                 user_interaction_handler.show_interrupted()
 
-            # Clear interrupt events so we can listen/speak again
-            va.input_handler.interrupt_event.clear()
-            va.output_handler.interrupt_event.clear()
-
-            # Unmute mic now that audio has fully drained
-            va.unmute_microphone()
+            # Don't clear interrupt_event here - let process_prompt() see it and exit
+            # The event will be cleared at the start of next process_prompt() call
+            # Don't unmute here either - let the main run() loop handle it
         finally:
             va.input_handler.release_stream_lock()
 

@@ -1022,9 +1022,9 @@ class VoiceAgent():
                 try:
                     self.output_handler.process_prompt(user_input_transcribed)
                 finally:
-                    # Only unmute if not interrupted (interrupt callback handles unmute timing)
-                    if not self.output_handler.interrupt_event.is_set():
-                        self.unmute_microphone()    
+                    # Always unmute after process_prompt completes or is interrupted
+                    # The interrupt() method already waits for audio to drain
+                    self.unmute_microphone()    
 
     def trigger_stop_events(self):
         self.input_handler.stop_event.set()

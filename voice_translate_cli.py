@@ -28,6 +28,7 @@
 #
 # Exit: Say "goodbye" (voice command)
 
+import logging
 import threading
 import time
 start_time = time.time()
@@ -38,6 +39,9 @@ from voice_agent import VoiceAgent
 import voice_agent_utils
 from tts_lib import tts_engines
 from voice_agent_interaction_handlers import get_handler
+
+# Suppress Piper phoneme warnings (some models missing combining characters)
+logging.getLogger('piper.phoneme_ids').setLevel(logging.ERROR)
 
 print(f">> -- All imports done in {time.time() - start_time:.2f} seconds -- <<")
 

@@ -168,7 +168,7 @@ def main():
     # initialize voice agent components
     t1 = time.time()
     print(">> Initializing Voice Agent and components <<")
-    va = VoiceAgent()
+    va = VoiceAgent(verbose=args.verbose)
 
     va.init_AudioToText(
         asr_model_name=args.asr_model_name,
@@ -214,16 +214,20 @@ def main():
         interrupt_count['n'] += 1
         if args.verbose:
             print(f"\n[Interrupted #{interrupt_count['n']}] at {time.time():.2f}")
+        va.debug_state("interrupt_start")
 
         # Acquire stream lock to prevent get_speech_input from starting mic
         # while we're draining audio
         va.input_handler.acquire_stream_lock()
+        va.debug_state("interrupt_got_stream_lock")
         try:
             # Interrupt input to discard any partial transcription
             va.input_handler.interrupt()
+            va.debug_state("interrupt_after_input_interrupt")
 
             # Interrupt output to stop speech (includes 0.5s audio drain wait)
             va.output_handler.interrupt()
+            va.debug_state("interrupt_after_output_interrupt")
 
             if hasattr(user_interaction_handler, 'show_interrupted'):
                 user_interaction_handler.show_interrupted()
@@ -233,6 +237,7 @@ def main():
             # Don't unmute here either - let the main run() loop handle it
         finally:
             va.input_handler.release_stream_lock()
+            va.debug_state("interrupt_released_lock")
 
         user_interaction_handler.start()
         if args.verbose:

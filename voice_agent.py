@@ -531,6 +531,10 @@ class LLmToAudio:
         while self.is_processing and not self.interrupt_event.is_set():
             time.sleep(0.05)
 
+        # Don't stop stream if interrupted - interrupt handler will handle it
+        if self.interrupt_event.is_set():
+            return
+
         # Stop (but don't close) the audio stream - it will be reused
         with self.lock:
             if self.audio_stream:
@@ -619,13 +623,15 @@ class LLmToAudio:
                 self._process_text_chunk(text_chunk)            
                 text_chunks.append(text_chunk)
 
+        # Always add assistant response to keep context valid (even partial)
+        assistant_response = ''.join(text_chunks)
+        if assistant_response.strip():
+            self.messages.append({'role': 'assistant', 'content': assistant_response})
+
         # Skip final processing if interrupted
         if self.interrupt_event.is_set():
             self._info(">> Interrupted, skipping finish processing")
             return
-
-        assistant_response = ''.join(text_chunks)
-        self.messages.append({'role': 'assistant', 'content': assistant_response})
 
         # Process any remaining text
         self._finish_processing()
@@ -887,6 +893,10 @@ class AudioToText:
         This method just monitors for end-of-utterance.
         """
 
+        # Clear interrupt event from previous cycle
+        # This ensures speech after interrupt is not discarded
+        self.interrupt_event.clear()
+
         # Clear any residual audio in the queue (e.g., from agent speech picked up by mic)
         cleared_count = 0
         try:
@@ -954,13 +964,50 @@ class AudioToText:
 class VoiceAgent():
 
 
-    def __init__(self):
+    def __init__(self, verbose=False):
+        self.verbose = verbose
         # Lock to prevent concurrent language changes (causes segfault in TTS)
         self._language_change_lock = threading.Lock()
 
     def _info(self, text):
         """Print info message."""
         print(f"[VoiceAgent] {text}")
+
+    def debug_state(self, label=""):
+        """Print current state of all handlers for debugging."""
+        if not self.verbose:
+            return
+
+        # Check lock states (use non-blocking acquire to test)
+        stream_lock_held = not self.input_handler._stream_lock.acquire(blocking=False)
+        if not stream_lock_held:
+            self.input_handler._stream_lock.release()
+
+        audio_write_lock_held = not self.output_handler._audio_write_lock.acquire(blocking=False)
+        if not audio_write_lock_held:
+            self.output_handler._audio_write_lock.release()
+
+        tts_lock_held = not self.output_handler._tts_lock.acquire(blocking=False)
+        if not tts_lock_held:
+            self.output_handler._tts_lock.release()
+
+        lang_lock_held = not self._language_change_lock.acquire(blocking=False)
+        if not lang_lock_held:
+            self._language_change_lock.release()
+
+        state = (
+            f"[STATE {label}] "
+            f"in_int={self.input_handler.interrupt_event.is_set()} "
+            f"out_int={self.output_handler.interrupt_event.is_set()} "
+            f"speaking={self.output_handler.is_speaking} "
+            f"processing={self.output_handler.is_processing} "
+            f"mic={self.input_handler.input_audio_stream.active if self.input_handler.input_audio_stream else 'None'} "
+            f"stream_lk={stream_lock_held} "
+            f"audio_lk={audio_write_lock_held} "
+            f"tts_lk={tts_lock_held} "
+            f"lang_lk={lang_lock_held}"
+        )
+        print(state)
 
     def init_AudioToText(self, **audioToTextKwargs):
         t1 = time.time()
@@ -1003,10 +1050,13 @@ class VoiceAgent():
         while True:
             if self.stop_event_set():
                 break
-            
+
+            self.debug_state("before_get_speech")
             user_input_transcribed = self.input_handler.get_speech_input()
+            self.debug_state("after_get_speech")
 
             if not user_input_transcribed:
+                self.debug_state("empty_input_continuing")
                 continue
 
             if voice_agent_utils.DEFAULT_EXIT_COMMAND.lower() in user_input_transcribed.lower():
@@ -1019,12 +1069,11 @@ class VoiceAgent():
 
                 # Mute mic while agent is speaking to prevent echo/feedback
                 self.mute_microphone()
-                try:
-                    self.output_handler.process_prompt(user_input_transcribed)
-                finally:
-                    # Always unmute after process_prompt completes or is interrupted
-                    # The interrupt() method already waits for audio to drain
-                    self.unmute_microphone()    
+                self.debug_state("before_process_prompt")
+                self.output_handler.process_prompt(user_input_transcribed)
+                self.debug_state("after_process_prompt")
+                # Note: Don't unmute here - get_speech_input() handles it via stream_lock
+                # This ensures we wait for interrupt callback's audio drain before starting mic    
 
     def trigger_stop_events(self):
         self.input_handler.stop_event.set()

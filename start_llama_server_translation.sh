@@ -18,7 +18,7 @@
 #                        were swapped back to disk.
 
 llama-server \
-    -m /root/dev/edge_voice_agent/models/llms/gemma-3-1b-it-Q4_0.gguf \
+    -m /root/dev/edge_voice_agent/models/llms/gemma-3-1b-it-Q4_K_M.gguf \
     --temp 0.0 --top-k 65 --top-p 0.95 --min-p 0.0 \
     -c 1024 \
     -np 1 \

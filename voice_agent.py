@@ -936,6 +936,9 @@ class AudioToText:
                 # Check for force end of segment (user pressed button while speaking)
                 if self.force_end_segment_event.is_set():
                     self.force_end_segment_event.clear()
+                    # Stop mic immediately to prevent more audio capture
+                    if self.input_audio_stream.active:
+                        self.input_audio_stream.stop()
                     if self.transcription_handler.had_speech or self.transcription_handler.accumulated_partial_text:
                         # Combine completed segments with any partial in progress
                         segments = self.transcription_handler.transcribed_segments[:]
@@ -943,11 +946,20 @@ class AudioToText:
                             segments.append(self.transcription_handler.accumulated_partial_text.strip())
                         all_transcribed = ' '.join(segments)
                         self._info(f">>> force end segment, returning: {all_transcribed}")
+                        # Clear audio queue to discard any buffered audio
+                        try:
+                            while True:
+                                self.audio_queue.get_nowait()
+                        except queue.Empty:
+                            pass
                         self.transcription_handler.reset()
                         self.vad.reset_states()
                         break
                     else:
                         self._info(">>> force end segment, but no speech yet")
+                        # Restart mic since we're continuing to listen
+                        if not self.input_audio_stream.active:
+                            self.input_audio_stream.start()
                         continue
 
                 # Small sleep to avoid busy-waiting (callback feeds queue in background)

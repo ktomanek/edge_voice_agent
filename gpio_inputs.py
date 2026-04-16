@@ -19,7 +19,7 @@ class GPIOHandler(ABC):
     """Abstract base class for GPIO input handling."""
 
     LANGUAGES = ['german', 'spanish', 'french']
-    LONG_PRESS_DURATION = 3.0  # seconds
+    LONG_PRESS_DURATION = 2.0  # seconds
 
     def __init__(self):
         self._interrupt_callback: Optional[Callable] = None

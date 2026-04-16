@@ -139,7 +139,10 @@ The voice agent supports hardware controls via GPIO on single-board computers us
 
 #### Features
 
-- **Interrupt Button**: Press to interrupt the agent's speech and return to listening mode
+- **Interrupt Button**: Context-aware button with multiple functions:
+  - **Short press while agent is speaking**: Interrupt the agent's speech and return to listening mode
+  - **Short press while user is speaking**: Force end of user segment (acts like VAD end-of-speech) and immediately send to agent
+  - **Long press (2+ seconds)**: Full reset - clears conversation history and restarts with the start message
 - **Rotary Dial**: 4-position switch for language selection (used by `voice_translate_cli.py`)
 
 #### Usage
@@ -150,7 +153,25 @@ python voice_agent_cli.py --platform rpi5
 
 # Translation agent with interrupt button + rotary dial
 python voice_translate_cli.py --platform opi5
+
+# With verbose output to see button actions
+python voice_agent_cli.py --platform rpi5 --verbose
 ```
+
+#### Keyboard Controls
+
+When running on a laptop/desktop without GPIO, you can use keyboard controls:
+
+```bash
+python voice_agent_cli.py --enable_keyboard_control
+```
+
+| Key | Action |
+| --- | ------ |
+| ENTER | Context-aware: interrupt agent OR force end user segment |
+| SPACE | Toggle microphone mute/unmute |
+
+Note: Long press (full reset) is only available via GPIO button, not keyboard.
 
 #### Pinout
 
@@ -209,6 +230,24 @@ Then run `python setup.py` as usual.
 ### End of utterance detection
 
 ```--end_of_utterance_duration 0.7``` determines when we consider the user input to be finished. Adapt according to user's speaking patterns, slower speakers might need a higher value. ```0.7``` seems to be a good default
+
+### Conversation Logging
+
+Log all user and agent utterances to a timestamped file:
+
+```bash
+python voice_agent_cli.py --log_conversation
+```
+
+Logs are saved to `logs/conversation_YYYYMMDD_HHMMSS.txt` with format:
+```
+[14:30:25] USER: Hello how are you
+[14:30:28] AGENT: I'm doing well, thank you for asking!
+[14:30:35] USER: What's the weather like
+...
+```
+
+Resets are also logged as `[RESET]` markers.
 
 ## System prompt from text
 

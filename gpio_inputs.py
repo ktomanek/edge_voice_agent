@@ -19,9 +19,11 @@ class GPIOHandler(ABC):
     """Abstract base class for GPIO input handling."""
 
     LANGUAGES = ['german', 'spanish', 'french']
+    LONG_PRESS_DURATION = 3.0  # seconds
 
     def __init__(self):
         self._interrupt_callback: Optional[Callable] = None
+        self._long_press_callback: Optional[Callable] = None
         self._language_change_callback: Optional[Callable[[str], None]] = None
         self._running = False
 
@@ -51,8 +53,13 @@ class GPIOHandler(ABC):
         pass
 
     def set_interrupt_callback(self, callback: Callable):
-        """Set callback for interrupt button press."""
+        """Set callback for interrupt button short press."""
         self._interrupt_callback = callback
+        self._setup_interrupt_callback()
+
+    def set_long_press_callback(self, callback: Callable):
+        """Set callback for interrupt button long press (3+ seconds)."""
+        self._long_press_callback = callback
         self._setup_interrupt_callback()
 
     def set_language_change_callback(self, callback: Callable[[str], None]):
@@ -94,6 +101,7 @@ class OrangePi5ProGPIOHandler(GPIOHandler):
         self._last_interrupt_value = None
         self._last_rotary_values = {}
         self._last_press_times = {}
+        self._interrupt_press_start = None  # For long press detection
 
     def setup(self, add_interrupt_button=True, add_rotary_dial=True):
         self._chip = self._gpiod.Chip(self.GPIO_CHIP)
@@ -166,15 +174,25 @@ class OrangePi5ProGPIOHandler(GPIOHandler):
             try:
                 now = time.time()
 
-                # Interrupt button
-                if self._interrupt_callback:
+                # Interrupt button with long press detection
+                if self._interrupt_line and (self._interrupt_callback or self._long_press_callback):
                     val = self._interrupt_line.get_value(self.INTERRUPT_PIN)
-                    if val != self._last_interrupt_value:
-                        if now - self._last_press_times['interrupt'] >= self.BOUNCE_TIME:
-                            self._last_press_times['interrupt'] = now
-                            if val == self._gpiod.line.Value.INACTIVE:
+                    is_pressed = (val == self._gpiod.line.Value.INACTIVE)
+
+                    if is_pressed and self._interrupt_press_start is None:
+                        # Button just pressed
+                        self._interrupt_press_start = now
+                    elif not is_pressed and self._interrupt_press_start is not None:
+                        # Button just released - check duration
+                        press_duration = now - self._interrupt_press_start
+                        self._interrupt_press_start = None
+
+                        if press_duration >= self.LONG_PRESS_DURATION:
+                            if self._long_press_callback:
+                                self._long_press_callback()
+                        else:
+                            if self._interrupt_callback:
                                 self._interrupt_callback()
-                        self._last_interrupt_value = val
 
                 # Rotary dial
                 if self._language_change_callback:
@@ -210,6 +228,7 @@ class RaspberryPi5GPIOHandler(GPIOHandler):
         self._Button = Button
         self._interrupt_button = None
         self._rotary_buttons = {}
+        self._interrupt_press_start = None  # For long press detection
 
     def setup(self, add_interrupt_button=True, add_rotary_dial=True):
         if add_interrupt_button:
@@ -250,8 +269,25 @@ class RaspberryPi5GPIOHandler(GPIOHandler):
         return None
 
     def _setup_interrupt_callback(self):
-        if self._interrupt_button and self._interrupt_callback:
-            self._interrupt_button.when_pressed = self._interrupt_callback
+        if self._interrupt_button:
+            self._interrupt_button.when_pressed = self._on_interrupt_pressed
+            self._interrupt_button.when_released = self._on_interrupt_released
+
+    def _on_interrupt_pressed(self):
+        self._interrupt_press_start = time.time()
+
+    def _on_interrupt_released(self):
+        if self._interrupt_press_start is None:
+            return
+        press_duration = time.time() - self._interrupt_press_start
+        self._interrupt_press_start = None
+
+        if press_duration >= self.LONG_PRESS_DURATION:
+            if self._long_press_callback:
+                self._long_press_callback()
+        else:
+            if self._interrupt_callback:
+                self._interrupt_callback()
 
     def _setup_language_callback(self):
         if self._language_change_callback:

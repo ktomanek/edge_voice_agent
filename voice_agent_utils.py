@@ -39,6 +39,8 @@ def get_cli_argument_parser():
                         help="Output audio device (speaker): index (e.g. '3') or ALSA name (e.g. 'plughw:3,0')")
     parser.add_argument("--platform", choices=['rpi5', 'opi5'], default=None,
                         help="Hardware platform for GPIO: rpi5 (Raspberry Pi 5) or opi5 (Orange Pi 5 Pro)")
+    parser.add_argument("--log_conversation", action="store_true", default=False,
+                        help="Log conversation to a timestamped file in logs/ directory")
 
     return parser
 

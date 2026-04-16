@@ -32,7 +32,7 @@ print("Loading Voice Agent...")
 import sys
 from voice_agent import VoiceAgent
 import voice_agent_utils
-from voice_agent_interaction_handlers import get_handler
+from voice_agent_interaction_handlers import get_handler, LoggingHandlerWrapper, create_conversation_log_file
 
 print(f">> -- All imports done in {time.time() - start_time:.2f} seconds -- <<")
 
@@ -52,6 +52,13 @@ def main():
     # Create interaction handlers
     user_interaction_handler = get_handler(args.interaction_handler, "User Input", "blue", is_agent=False)
     agent_interaction_handler = get_handler(args.interaction_handler, "Agent Output", "magenta", is_agent=True)
+
+    # Wrap with logging if requested
+    log_file = None
+    if args.log_conversation:
+        log_file = create_conversation_log_file()
+        user_interaction_handler = LoggingHandlerWrapper(user_interaction_handler, log_file, "USER")
+        agent_interaction_handler = LoggingHandlerWrapper(agent_interaction_handler, log_file, "AGENT")
 
     # Setup GPIO handler based on platform
     gpio_handler = None
@@ -97,13 +104,14 @@ def main():
     # full start time to ready
     print(f">> --  Voice Agent ready in {time.time()-start_time:.2f} seconds -- <<")
 
-    # Define interrupt callback (used by both GPIO button and keyboard)
-    interrupt_count = {'n': 0}
-    def on_output_interrupt():
+    # Define button callbacks (used by both GPIO button and keyboard)
+    button_press_count = {'n': 0}
+
+    def on_interrupt_agent():
         """Interrupt agent's speech output and discard pending input."""
-        interrupt_count['n'] += 1
+        button_press_count['n'] += 1
         if args.verbose:
-            print(f"\n[Interrupted #{interrupt_count['n']}] at {time.time():.2f}")
+            print(f"\n[Interrupt agent #{button_press_count['n']}] at {time.time():.2f}")
         va.debug_state("interrupt_start")
 
         # Acquire stream lock to prevent get_speech_input from starting mic
@@ -131,12 +139,30 @@ def main():
 
         user_interaction_handler.start()
         if args.verbose:
-            print(f"[Interrupt #{interrupt_count['n']} done]")
+            print(f"[Interrupt agent #{button_press_count['n']} done]")
+
+    def on_button_press():
+        """Context-aware button press: interrupt agent OR force end user segment."""
+        if va.output_handler.is_speaking or va.output_handler.is_processing:
+            # Agent is active - interrupt it
+            on_interrupt_agent()
+        else:
+            # User might be speaking - force end segment
+            if args.verbose:
+                print(f"\n[Force end segment] at {time.time():.2f}")
+            va.input_handler.force_end_segment()
+
+    def on_long_press():
+        """Long press: full reset."""
+        if args.verbose:
+            print(f"\n[Full reset] at {time.time():.2f}")
+        va.full_reset()
 
     # Setup GPIO interrupt button via gpio_handler
     if gpio_handler:
-        gpio_handler.set_interrupt_callback(on_output_interrupt)
-        print(">> GPIO interrupt button enabled")
+        gpio_handler.set_interrupt_callback(on_button_press)
+        gpio_handler.set_long_press_callback(on_long_press)
+        print(">> GPIO button enabled (short=interrupt/end-segment, long=reset)")
 
     # Setup keyboard controls via the interaction handler
     if args.enable_keyboard_control and hasattr(user_interaction_handler, 'setup_keyboard_controls'):
@@ -154,13 +180,13 @@ def main():
                 print("\r\033[K🔇 Microphone MUTED")
 
         key_callbacks = {
-            'enter': on_output_interrupt,
+            'enter': on_button_press,
             'space': on_mute_toggle,
         }
 
         user_interaction_handler.setup_keyboard_controls(key_callbacks)
 
-        print("Keyboard controls: ENTER=interrupt | SPACE=mute/unmute")
+        print("Keyboard controls: ENTER=interrupt/end-segment | SPACE=mute/unmute")
 
     # Run the voice agent
     try:
@@ -172,6 +198,9 @@ def main():
         # Clean up interaction handler (handles keyboard listener cleanup too)
         if hasattr(user_interaction_handler, 'cleanup'):
             user_interaction_handler.cleanup()
+        # Close log file
+        if log_file:
+            log_file.close()
 
 if __name__ == "__main__":
     main()

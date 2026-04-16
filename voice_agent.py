@@ -738,6 +738,7 @@ class AudioToText:
         # Transcription thread
         self.stop_event = threading.Event()
         self.interrupt_event = threading.Event()  # For aborting current input
+        self.force_end_segment_event = threading.Event()  # For forcing end of user speech
         self._stream_lock = threading.Lock()  # Prevents stream start during interrupt
         self.transcription_handler = captioning_utils.TranscriptionWorker(
             sampling_rate=captioning_utils.SAMPLING_RATE)
@@ -874,6 +875,11 @@ class AudioToText:
         except queue.Empty:
             pass
 
+    def force_end_segment(self):
+        """Force end of current speech segment - return whatever we have so far."""
+        self._info("Force end of segment requested")
+        self.force_end_segment_event.set()
+
     def shutdown(self):
         # Clean up audio resources
         if self.input_audio_stream:
@@ -893,9 +899,9 @@ class AudioToText:
         This method just monitors for end-of-utterance.
         """
 
-        # Clear interrupt event from previous cycle
-        # This ensures speech after interrupt is not discarded
+        # Clear events from previous cycle
         self.interrupt_event.clear()
+        self.force_end_segment_event.clear()
 
         # Clear any residual audio in the queue (e.g., from agent speech picked up by mic)
         cleared_count = 0
@@ -926,6 +932,23 @@ class AudioToText:
                 # Check for stop signal
                 if self.stop_event.is_set():
                     return ""
+
+                # Check for force end of segment (user pressed button while speaking)
+                if self.force_end_segment_event.is_set():
+                    self.force_end_segment_event.clear()
+                    if self.transcription_handler.had_speech or self.transcription_handler.accumulated_partial_text:
+                        # Combine completed segments with any partial in progress
+                        segments = self.transcription_handler.transcribed_segments[:]
+                        if self.transcription_handler.accumulated_partial_text.strip():
+                            segments.append(self.transcription_handler.accumulated_partial_text.strip())
+                        all_transcribed = ' '.join(segments)
+                        self._info(f">>> force end segment, returning: {all_transcribed}")
+                        self.transcription_handler.reset()
+                        self.vad.reset_states()
+                        break
+                    else:
+                        self._info(">>> force end segment, but no speech yet")
+                        continue
 
                 # Small sleep to avoid busy-waiting (callback feeds queue in background)
                 time.sleep(0.01)
@@ -1094,6 +1117,40 @@ class VoiceAgent():
     def is_microphone_muted(self):
         """Check if the microphone is currently muted"""
         return self.input_handler.is_muted()
+
+    def full_reset(self):
+        """Full reset - flush LLM context and restart with start message."""
+        self._info("Full reset requested")
+
+        self.input_handler.acquire_stream_lock()
+        try:
+            # Interrupt any ongoing input/output
+            self.input_handler.interrupt()
+            self.output_handler.interrupt()
+
+            # Mute mic while we speak
+            self.mute_microphone()
+
+            # Reset output handler (clears LLM context)
+            self.output_handler.start()
+
+            # Clear interrupt so we can speak
+            self.output_handler.interrupt_event.clear()
+
+            # Speak start message
+            start_message = self.output_handler.start_message
+            self.output_handler._start_audio_stream()
+            self.output_handler.assistant_printer.start()
+            self.output_handler.assistant_printer.print("[RESET]", partial=False)
+            self.output_handler.assistant_printer.print(start_message, partial=False)
+            self.output_handler._speak_sentence(start_message, wait_for_completion=True)
+            self.output_handler._finish_processing()
+
+            # Clear input interrupt and unmute
+            self.input_handler.interrupt_event.clear()
+            self.unmute_microphone()
+        finally:
+            self.input_handler.release_stream_lock()
 
     def change_language(self, lang_config):
         """Dynamically change the target language for translation.

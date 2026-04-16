@@ -1,6 +1,8 @@
 import sys
 import time
 import threading
+import os
+from datetime import datetime
 
 from captioning_lib import printers
 
@@ -167,6 +169,47 @@ class ColoredHandler(printers.CaptionPrinter):
         """Clean up resources."""
         if hasattr(self, '_stop_event'):
             self._stop_event.set()
+
+
+class LoggingHandlerWrapper:
+    """Wrapper that logs conversation to file while delegating to another handler."""
+
+    def __init__(self, handler, log_file, role):
+        """
+        Args:
+            handler: The underlying handler to delegate to
+            log_file: Open file handle to write logs to
+            role: 'user' or 'agent' to identify speaker in log
+        """
+        self._handler = handler
+        self._log_file = log_file
+        self._role = role
+
+    def __getattr__(self, name):
+        # Delegate all other attributes to the wrapped handler
+        return getattr(self._handler, name)
+
+    def print(self, transcript, duration=None, partial=False, **kwargs):
+        # Log only final (non-partial) transcripts
+        if not partial and transcript.strip():
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            self._log_file.write(f"[{timestamp}] {self._role}: {transcript}\n")
+            self._log_file.flush()
+        # Delegate to underlying handler
+        return self._handler.print(transcript, duration=duration, partial=partial, **kwargs)
+
+
+def create_conversation_log_file(log_dir="logs"):
+    """Create a new conversation log file with timestamp."""
+    os.makedirs(log_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{log_dir}/conversation_{timestamp}.txt"
+    log_file = open(filename, "w")
+    log_file.write(f"Conversation started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+    log_file.write("-" * 50 + "\n")
+    log_file.flush()
+    print(f">> Logging conversation to: {filename}")
+    return log_file
 
 
 class MinimalHandler(printers.CaptionPrinter):

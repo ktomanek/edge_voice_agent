@@ -55,7 +55,7 @@ def main():
 
     # Wrap with logging if requested
     log_file = None
-    if args.log_conversation:
+    if args.log_conversation:  # argparse converts --log-conversation to log_conversation
         log_file = create_conversation_log_file()
         user_interaction_handler = LoggingHandlerWrapper(user_interaction_handler, log_file, "USER")
         agent_interaction_handler = LoggingHandlerWrapper(agent_interaction_handler, log_file, "AGENT")

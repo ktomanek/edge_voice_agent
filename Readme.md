@@ -236,18 +236,22 @@ Then run `python setup.py` as usual.
 Log all user and agent utterances to a timestamped file:
 
 ```bash
-python voice_agent_cli.py --log_conversation
+python voice_agent_cli.py --log-conversation
 ```
 
 Logs are saved to `logs/conversation_YYYYMMDD_HHMMSS.txt` with format:
 ```
+Conversation started at 2026-04-16 14:30:22
+--------------------------------------------------
 [14:30:25] USER: Hello how are you
 [14:30:28] AGENT: I'm doing well, thank you for asking!
 [14:30:35] USER: What's the weather like
+[14:31:00] AGENT: [RESET]
+[14:31:00] AGENT: Hello, how can I help you today?
 ...
 ```
 
-Resets are also logged as `[RESET]` markers.
+Resets are logged as `[RESET]` followed by the start message.
 
 ## System prompt from text
 

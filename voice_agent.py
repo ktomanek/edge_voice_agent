@@ -492,8 +492,9 @@ class LLmToAudio:
 
             # Optionally wait for audio to finish playing (outside lock)
             if wait_for_completion:
-                audio_duration = len(audio_data) / self.sample_rate
-                time.sleep(audio_duration)
+                # Note: audio_stream.write() already blocks until audio is buffered,
+                # so we only need a short wait for the final buffer to drain
+                time.sleep(0.1)
         except Exception as e:
             if not self.interrupt_event.is_set():
                 self._info(f"Error during speech: {e}")
@@ -1132,16 +1133,31 @@ class VoiceAgent():
 
     def full_reset(self):
         """Full reset - flush LLM context and restart with start message."""
+        self.full_reset_with_prompt()
+
+    def full_reset_with_prompt(self, system_prompt=None, start_message=None):
+        """Full reset with optional new system prompt and start message."""
         self._info("Full reset requested")
 
         self.input_handler.acquire_stream_lock()
         try:
-            # Interrupt any ongoing input/output
+            # Interrupt any ongoing input/output (only if active, to avoid unnecessary delays)
+            if self.output_handler.is_speaking or self.output_handler.is_processing:
+                self.output_handler.interrupt()
+            else:
+                # Just clear state without the 0.5s audio drain wait
+                self.output_handler.interrupt_event.set()
+                self.output_handler._generation_id += 1
             self.input_handler.interrupt()
-            self.output_handler.interrupt()
 
             # Mute mic while we speak
             self.mute_microphone()
+
+            # Update prompts if provided
+            if system_prompt is not None:
+                self.output_handler.system_prompt = system_prompt
+            if start_message is not None:
+                self.output_handler.start_message = start_message
 
             # Reset output handler (clears LLM context)
             self.output_handler.start()
@@ -1150,12 +1166,12 @@ class VoiceAgent():
             self.output_handler.interrupt_event.clear()
 
             # Speak start message
-            start_message = self.output_handler.start_message
+            msg = self.output_handler.start_message
             self.output_handler._start_audio_stream()
             self.output_handler.assistant_printer.start()
             self.output_handler.assistant_printer.print("[RESET]", partial=False)
-            self.output_handler.assistant_printer.print(start_message, partial=False)
-            self.output_handler._speak_sentence(start_message, wait_for_completion=True)
+            self.output_handler.assistant_printer.print(msg, partial=False)
+            self.output_handler._speak_sentence(msg, wait_for_completion=True)
             self.output_handler._finish_processing()
 
             # Clear input interrupt and unmute

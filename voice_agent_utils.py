@@ -1,4 +1,6 @@
 import argparse
+import json
+import random
 
 DEFAULT_LLM_SERVER_URL = "http://localhost:8080/v1"
 DEFAULT_LLM_SERVER_MODEL = "dummy"
@@ -6,7 +8,7 @@ DEFAULT_LLM_SERVER_API_KEY = "dummy"
 
 DEFAULT_LANGUAGE = "en"
 
-DEFAULT_SYSTEM_PROMPT = "Answer requests succintly and factually. Maximum one sentence."
+DEFAULT_SYSTEM_PROMPT = "Start each response with a brief, varied acknowledgment (e.g., 'Sure!', 'Hmm...', 'Ah!', 'Right!', 'Not really', 'OK so...', 'Let's see...'). Be skeptical and push back if you disagree. Never repeat the same opener twice in a row. Then give your concise answer of maximum one sentence."
 
 DEFAULT_START_MESSAGE = "Ask me anything!"
 DEFAULT_GOODBYE_MESSAGE = "Goodbye!"
@@ -24,10 +26,11 @@ def get_cli_argument_parser():
     parser.add_argument("--language", default=DEFAULT_LANGUAGE, help="language to use")
     parser.add_argument("--tts_model_path", required=False, help="Path to the tts model (.onnx file)")
     parser.add_argument("--speaking_rate", type=float, default=1.0, help="how fast should generated speech be, 1.0 is default, higher numbers mean faster speech")
-    parser.add_argument("--max_words_to_speak_start", type=int, default=5, help="maximum number of words to speech onset after a prompt; reduce if latency too high.")
-    parser.add_argument("--max_words_to_speak", type=float, default=20, help="always produce speech after this many words were produced ignoring sentence boundaries.")        
+    parser.add_argument("--max_words_to_speak_start", type=int, default=10, help="maximum number of words to speech onset after a prompt; reduce if latency too high.")
+    parser.add_argument("--max_words_to_speak", type=int, default=25, help="always produce speech after this many words were produced ignoring sentence boundaries.")        
     parser.add_argument("--system_prompt", default=DEFAULT_SYSTEM_PROMPT, help="Instructions for the model.")
     parser.add_argument("--start_message", default=DEFAULT_START_MESSAGE, help="Opening sentence.")
+    parser.add_argument("--prompt_file", type=str, default=None, help="JSON file with prompt pairs. Format: [{\"system_prompt\": \"...\", \"start_message\": \"...\"}]. Overrides --system_prompt and --start_message.")
     parser.add_argument("--min_partial_duration", type=float, default=0.25, help="Minimum duration in seconds for partial transcriptions to be displayed.",)
     parser.add_argument("--end_of_utterance_duration", type=float, default=0.7, help="Silence seconds until end of turn of user identified")
     parser.add_argument("--enable_keyboard_control", action="store_true", default=False, help="Enable keyboard control (space to mute/unmute, ESC to exit)")
@@ -67,6 +70,37 @@ def apply_audio_device_settings(args):
             sd.default.device[1] = output_dev
             name = sd.query_devices(output_dev)['name'] if isinstance(output_dev, int) else output_dev
             print(f">> Using output device: {name}")
+
+class PromptSelector:
+    """Manages random selection of system_prompt/start_message pairs from a file."""
+
+    def __init__(self, prompt_file=None, default_system_prompt=None, default_start_message=None):
+        self.prompts = []
+        self.last_index = -1
+
+        if prompt_file:
+            with open(prompt_file, 'r') as f:
+                self.prompts = json.load(f)
+            if not self.prompts:
+                raise ValueError(f"Prompt file {prompt_file} is empty")
+            print(f">> Loaded {len(self.prompts)} prompt pairs from {prompt_file}")
+        else:
+            # Use single default prompt
+            self.prompts = [{
+                'system_prompt': default_system_prompt or DEFAULT_SYSTEM_PROMPT,
+                'start_message': default_start_message or DEFAULT_START_MESSAGE
+            }]
+
+    def get_random_prompt(self):
+        """Get a random prompt pair, avoiding the last one if possible."""
+        if len(self.prompts) == 1:
+            return self.prompts[0]
+
+        # Pick a different index than last time
+        available = [i for i in range(len(self.prompts)) if i != self.last_index]
+        self.last_index = random.choice(available)
+        return self.prompts[self.last_index]
+
 
 def get_ui_argument_parser():
     

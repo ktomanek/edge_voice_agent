@@ -45,9 +45,18 @@ def main():
 
     voice_agent_utils.apply_audio_device_settings(args)
 
+    # Setup prompt selector (either from file or CLI args)
+    prompt_selector = voice_agent_utils.PromptSelector(
+        prompt_file=args.prompt_file,
+        default_system_prompt=args.system_prompt,
+        default_start_message=args.start_message
+    )
+    initial_prompt = prompt_selector.get_random_prompt()
+
     t1 = time.time()
     print(">> Initializing Voice Agent <<")
     va = VoiceAgent(verbose=args.verbose)
+    va.prompt_selector = prompt_selector  # Store for use on reset
 
     # Create interaction handlers
     user_interaction_handler = get_handler(args.interaction_handler, "User Input", "blue", is_agent=False)
@@ -59,6 +68,10 @@ def main():
         log_file = create_conversation_log_file()
         user_interaction_handler = LoggingHandlerWrapper(user_interaction_handler, log_file, "USER")
         agent_interaction_handler = LoggingHandlerWrapper(agent_interaction_handler, log_file, "AGENT")
+        # Log initial prompt name
+        prompt_name = initial_prompt.get('name', 'unnamed')
+        log_file.write(f"[PROMPT] {prompt_name}\n")
+        log_file.flush()
 
     # Setup GPIO handler based on platform
     gpio_handler = None
@@ -85,13 +98,14 @@ def main():
 
     va.init_LLmToAudioOutput(
         llm_server_url=args.llm_server_url,
-        system_prompt=args.system_prompt,
-        start_message=args.start_message,
+        system_prompt=initial_prompt['system_prompt'],
+        start_message=initial_prompt['start_message'],
         tts_engine=args.tts_engine,
         speaking_rate=args.speaking_rate,
         tts_model_path=args.tts_model_path,
         max_words_to_speak_start=args.max_words_to_speak_start,
         max_words_to_speak=args.max_words_to_speak,
+        split_on_punctuation=False,
         verbose=args.verbose,
         single_turn=False,  # Conversational agent keeps history
         printer=agent_interaction_handler
@@ -153,10 +167,20 @@ def main():
             va.input_handler.force_end_segment()
 
     def on_long_press():
-        """Long press: full reset."""
+        """Long press: full reset with new random prompt."""
         if args.verbose:
             print(f"\n[Full reset] at {time.time():.2f}")
-        va.full_reset()
+        # Pick a new random prompt pair
+        new_prompt = va.prompt_selector.get_random_prompt()
+        # Log prompt name if logging enabled
+        if log_file:
+            prompt_name = new_prompt.get('name', 'unnamed')
+            log_file.write(f"\n[RESET] [PROMPT] {prompt_name}\n")
+            log_file.flush()
+        va.full_reset_with_prompt(
+            system_prompt=new_prompt['system_prompt'],
+            start_message=new_prompt['start_message']
+        )
 
     # Setup GPIO interrupt button via gpio_handler
     if gpio_handler:
@@ -179,14 +203,29 @@ def main():
                 mute_state['is_muted'] = True
                 print("\r\033[K🔇 Microphone MUTED")
 
+        def on_reset():
+            print("\r\033[K🔄 Resetting conversation...")
+            # Pick a new random prompt pair
+            new_prompt = va.prompt_selector.get_random_prompt()
+            # Log prompt name if logging enabled
+            if log_file:
+                prompt_name = new_prompt.get('name', 'unnamed')
+                log_file.write(f"\n[RESET] [PROMPT] {prompt_name}\n")
+                log_file.flush()
+            va.full_reset_with_prompt(
+                system_prompt=new_prompt['system_prompt'],
+                start_message=new_prompt['start_message']
+            )
+
         key_callbacks = {
             'enter': on_button_press,
             'space': on_mute_toggle,
+            'r': on_reset,
         }
 
         user_interaction_handler.setup_keyboard_controls(key_callbacks)
 
-        print("Keyboard controls: ENTER=interrupt/end-segment | SPACE=mute/unmute")
+        print("Keyboard controls: ENTER=interrupt/end-segment | SPACE=mute/unmute | R=reset")
 
     # Run the voice agent
     try:

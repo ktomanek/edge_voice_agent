@@ -445,8 +445,10 @@ class LLmToAudio:
             if not self.sentence_queue.empty() and not self.stop_event.is_set() and not self.interrupt_event.is_set():
                 self._start_sentence_processor()
     
-    def _speak_sentence(self, text, speed=1.0, noise_scale=0.667, noise_w=0.8, wait_for_completion=False):
+    def _speak_sentence(self, text, speed=None, noise_scale=0.667, noise_w=0.8, wait_for_completion=False):
         """Synthesize and play a sentence with TTS model."""
+        if speed is None:
+            speed = self.speaking_rate
         if not text.strip():
             return
 

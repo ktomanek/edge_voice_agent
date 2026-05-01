@@ -2,7 +2,7 @@
 
 Provides unified interface for:
 - Interrupt button
-- Rotary dial (4-position language selector)
+- Rotary dial (3-position selector)
 
 Implementations:
 - OrangePi5ProGPIOHandler (using gpiod)
@@ -18,13 +18,13 @@ from typing import Callable, Optional, Dict
 class GPIOHandler(ABC):
     """Abstract base class for GPIO input handling."""
 
-    LANGUAGES = ['german', 'spanish', 'french']
+    POSITIONS = ['pos1', 'pos2', 'pos3']
     LONG_PRESS_DURATION = 2.0  # seconds
 
     def __init__(self):
         self._interrupt_callback: Optional[Callable] = None
         self._long_press_callback: Optional[Callable] = None
-        self._language_change_callback: Optional[Callable[[str], None]] = None
+        self._position_change_callback: Optional[Callable[[str], None]] = None
         self._running = False
 
     @abstractmethod
@@ -33,7 +33,7 @@ class GPIOHandler(ABC):
 
         Args:
             add_interrupt_button: If True, setup interrupt button.
-            add_rotary_dial: If True, setup rotary dial for language selection.
+            add_rotary_dial: If True, setup rotary dial.
         """
         pass
 
@@ -48,8 +48,8 @@ class GPIOHandler(ABC):
         pass
 
     @abstractmethod
-    def get_current_language(self) -> Optional[str]:
-        """Return current rotary dial position as language name, or None."""
+    def get_current_position(self) -> Optional[str]:
+        """Return current rotary dial position ('pos1'/'pos2'/'pos3'), or None."""
         pass
 
     def set_interrupt_callback(self, callback: Callable):
@@ -62,10 +62,10 @@ class GPIOHandler(ABC):
         self._long_press_callback = callback
         self._setup_interrupt_callback()
 
-    def set_language_change_callback(self, callback: Callable[[str], None]):
-        """Set callback for rotary dial change. Callback receives language name."""
-        self._language_change_callback = callback
-        self._setup_language_callback()
+    def set_position_change_callback(self, callback: Callable[[str], None]):
+        """Set callback for rotary dial change. Callback receives position name."""
+        self._position_change_callback = callback
+        self._setup_position_callback()
 
     @abstractmethod
     def _setup_interrupt_callback(self):
@@ -73,7 +73,7 @@ class GPIOHandler(ABC):
         pass
 
     @abstractmethod
-    def _setup_language_callback(self):
+    def _setup_position_callback(self):
         """Internal: setup rotary dial callback."""
         pass
 
@@ -83,10 +83,12 @@ class OrangePi5ProGPIOHandler(GPIOHandler):
 
     GPIO_CHIP = "/dev/gpiochip1"
     INTERRUPT_PIN = 14
+    # Rotary dial positions. The translator CLI maps these to:
+    #   pos1 -> german, pos2 -> spanish, pos3 -> french
     ROTARY_PINS = {
-        'german': 13,
-        'spanish': 15,
-        'french': 8,
+        'pos1': 13,
+        'pos2': 15,
+        'pos3': 8,
     }
     BOUNCE_TIME = 0.05
 
@@ -115,11 +117,11 @@ class OrangePi5ProGPIOHandler(GPIOHandler):
 
         # Rotary pins
         if add_rotary_dial:
-            for lang, pin in self.ROTARY_PINS.items():
+            for pos, pin in self.ROTARY_PINS.items():
                 config = {pin: self._gpiod.LineSettings(direction=self._gpiod.line.Direction.INPUT)}
-                self._rotary_lines[lang] = self._chip.request_lines(consumer=f"rotary_{lang}", config=config)
-                self._last_rotary_values[lang] = self._rotary_lines[lang].get_value(pin)
-                self._last_press_times[lang] = 0
+                self._rotary_lines[pos] = self._chip.request_lines(consumer=f"rotary_{pos}", config=config)
+                self._last_rotary_values[pos] = self._rotary_lines[pos].get_value(pin)
+                self._last_press_times[pos] = 0
 
         parts = []
         if add_interrupt_button:
@@ -149,17 +151,17 @@ class OrangePi5ProGPIOHandler(GPIOHandler):
         val = self._interrupt_line.get_value(self.INTERRUPT_PIN)
         return val == self._gpiod.line.Value.INACTIVE
 
-    def get_current_language(self) -> Optional[str]:
-        for lang, pin in self.ROTARY_PINS.items():
-            val = self._rotary_lines[lang].get_value(pin)
+    def get_current_position(self) -> Optional[str]:
+        for pos, pin in self.ROTARY_PINS.items():
+            val = self._rotary_lines[pos].get_value(pin)
             if val == self._gpiod.line.Value.INACTIVE:
-                return lang
+                return pos
         return None
 
     def _setup_interrupt_callback(self):
         self._start_polling()
 
-    def _setup_language_callback(self):
+    def _setup_position_callback(self):
         self._start_polling()
 
     def _start_polling(self):
@@ -195,15 +197,15 @@ class OrangePi5ProGPIOHandler(GPIOHandler):
                                 self._interrupt_callback()
 
                 # Rotary dial
-                if self._language_change_callback:
-                    for lang, pin in self.ROTARY_PINS.items():
-                        val = self._rotary_lines[lang].get_value(pin)
-                        if val != self._last_rotary_values[lang]:
-                            if now - self._last_press_times[lang] >= self.BOUNCE_TIME:
-                                self._last_press_times[lang] = now
+                if self._position_change_callback:
+                    for pos, pin in self.ROTARY_PINS.items():
+                        val = self._rotary_lines[pos].get_value(pin)
+                        if val != self._last_rotary_values[pos]:
+                            if now - self._last_press_times[pos] >= self.BOUNCE_TIME:
+                                self._last_press_times[pos] = now
                                 if val == self._gpiod.line.Value.INACTIVE:
-                                    self._language_change_callback(lang)
-                            self._last_rotary_values[lang] = val
+                                    self._position_change_callback(pos)
+                            self._last_rotary_values[pos] = val
 
                 time.sleep(0.01)
             except Exception as e:
@@ -215,10 +217,12 @@ class RaspberryPi5GPIOHandler(GPIOHandler):
     """GPIO handler for Raspberry Pi 5 using gpiozero."""
 
     INTERRUPT_PIN = 22
+    # Rotary dial positions. The translator CLI maps these to:
+    #   pos1 -> german, pos2 -> spanish, pos3 -> french
     ROTARY_PINS = {
-        'german': 23,
-        'spanish': 24,
-        'french': 27,
+        'pos1': 23,
+        'pos2': 24,
+        'pos3': 27,
     }
     BOUNCE_TIME = 0.05
 
@@ -239,8 +243,8 @@ class RaspberryPi5GPIOHandler(GPIOHandler):
             )
 
         if add_rotary_dial:
-            for lang, pin in self.ROTARY_PINS.items():
-                self._rotary_buttons[lang] = self._Button(
+            for pos, pin in self.ROTARY_PINS.items():
+                self._rotary_buttons[pos] = self._Button(
                     pin,
                     pull_up=True,
                     bounce_time=self.BOUNCE_TIME
@@ -262,10 +266,10 @@ class RaspberryPi5GPIOHandler(GPIOHandler):
     def is_interrupt_pressed(self) -> bool:
         return self._interrupt_button.is_pressed
 
-    def get_current_language(self) -> Optional[str]:
-        for lang, btn in self._rotary_buttons.items():
+    def get_current_position(self) -> Optional[str]:
+        for pos, btn in self._rotary_buttons.items():
             if btn.is_pressed:
-                return lang
+                return pos
         return None
 
     def _setup_interrupt_callback(self):
@@ -289,10 +293,10 @@ class RaspberryPi5GPIOHandler(GPIOHandler):
             if self._interrupt_callback:
                 self._interrupt_callback()
 
-    def _setup_language_callback(self):
-        if self._language_change_callback:
-            for lang, btn in self._rotary_buttons.items():
-                btn.when_pressed = lambda l=lang: self._language_change_callback(l)
+    def _setup_position_callback(self):
+        if self._position_change_callback:
+            for pos, btn in self._rotary_buttons.items():
+                btn.when_pressed = lambda p=pos: self._position_change_callback(p)
 
 
 def get_gpio_handler() -> GPIOHandler:
@@ -323,14 +327,14 @@ if __name__ == "__main__":
     def on_interrupt():
         print(">> INTERRUPT pressed!")
 
-    def on_language_change(lang):
-        print(f">> Language: {lang.upper()}")
+    def on_position_change(pos):
+        print(f">> Position: {pos.upper()}")
 
     handler.set_interrupt_callback(on_interrupt)
-    handler.set_language_change_callback(on_language_change)
+    handler.set_position_change_callback(on_position_change)
 
-    current_lang = handler.get_current_language()
-    print(f"\nInitial language: {current_lang or 'none'}")
+    current_pos = handler.get_current_position()
+    print(f"\nInitial position: {current_pos or 'none'}")
     print("Press buttons to test (Ctrl+C to exit)...\n")
 
     try:

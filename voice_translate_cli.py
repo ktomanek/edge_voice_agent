@@ -71,11 +71,20 @@ LANGUAGE_CONFIGS = {
     },
 }
 
-# Keyboard shortcuts for language selection
+# Map rotary positions to languages (translator-specific assignment).
+POSITION_TO_LANGUAGE = {
+    'pos1': 'german',
+    'pos2': 'spanish',
+    'pos3': 'french',
+}
+
+# Keyboard shortcuts for language selection (derived from POSITION_KEYS).
+# Skip positions that aren't mapped to a language (translator only uses 3).
+from opi.gpio_utils import POSITION_KEYS
 LANGUAGE_KEYS = {
-    'g': 'german',
-    's': 'spanish',
-    'f': 'french',
+    key: POSITION_TO_LANGUAGE[pos]
+    for key, pos in POSITION_KEYS.items()
+    if pos in POSITION_TO_LANGUAGE
 }
 
 DEFAULT_OUTPUT_LANGUAGE = 'spanish'
@@ -144,7 +153,8 @@ def main():
     # Read rotary dial position (or use default if not connected)
     initial_language = None
     if gpio_handler:
-        initial_language = gpio_handler.get_current_language()
+        pos = gpio_handler.get_current_position()
+        initial_language = POSITION_TO_LANGUAGE.get(pos)
 
     if initial_language is None:
         initial_language = DEFAULT_OUTPUT_LANGUAGE
@@ -270,21 +280,24 @@ def main():
     SETTLE_DELAY = 0.3
     if gpio_handler:
 
-        def on_language_change(lang_name):
+        def on_position_change(pos):
+            lang_name = POSITION_TO_LANGUAGE.get(pos)
+            if lang_name is None or lang_name not in LANGUAGE_CONFIGS:
+                return
             if switch_state['timer'] is not None:
                 switch_state['timer'].cancel()
-            if lang_name in LANGUAGE_CONFIGS:
-                switch_state['timer'] = threading.Timer(
-                    SETTLE_DELAY,
-                    va.change_language,
-                    args=[LANGUAGE_CONFIGS[lang_name]]
-                )
-                switch_state['timer'].start()
+            switch_state['timer'] = threading.Timer(
+                SETTLE_DELAY,
+                va.change_language,
+                args=[LANGUAGE_CONFIGS[lang_name]]
+            )
+            switch_state['timer'].start()
 
-        gpio_handler.set_language_change_callback(on_language_change)
+        gpio_handler.set_position_change_callback(on_position_change)
         print(">> Rotary switch listener active")
     else:
-        print(">> GPIO not available (use --platform rpi5 or opi5), using keyboard: g/s/a/f")
+        keys_str = "/".join(LANGUAGE_KEYS.keys())
+        print(f">> GPIO not available (use --platform rpi5 or opi5), using keyboard: {keys_str}")
 
     # Run the voice agent
     try:

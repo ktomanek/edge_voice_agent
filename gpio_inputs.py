@@ -222,7 +222,7 @@ class RaspberryPi5GPIOHandler(GPIOHandler):
     ROTARY_PINS = {
         'pos1': 23,
         'pos2': 24,
-        'pos3': 27,
+        'pos3': 17,
     }
     BOUNCE_TIME = 0.05
 

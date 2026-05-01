@@ -46,7 +46,7 @@ ROTARY_POSITION_TO_PROMPT_INDEX = {
     'pos2': 1,
     'pos3': 2,
 }
-ROTARY_SETTLE_DELAY = 0.3
+ROTARY_SETTLE_DELAY = 0.5
 
 print(f">> -- All imports done in {time.time() - start_time:.2f} seconds -- <<")
 
@@ -202,18 +202,26 @@ def main():
         print(">> GPIO interrupt button enabled (interrupts agent speech only)")
 
     # -- rotary switch -> prompt selection --
-    # Debounce so dial sweeps don't queue multiple prompt switches.
-    rotary_state = {'timer': None}
+    # Debounce so dial sweeps don't queue multiple prompt switches, and
+    # suppress repeat events for the position we already applied (mechanical
+    # bounce on the rotary can keep firing after the dial has settled).
+    initial_pos = gpio_handler.get_current_position() if gpio_handler else None
+    rotary_state = {'timer': None, 'last_applied_pos': initial_pos}
+
     def switch_to_position(rotary_pos):
         idx = ROTARY_POSITION_TO_PROMPT_INDEX.get(rotary_pos)
         if idx is None or idx >= len(prompt_selector.prompts):
             return
-        new_prompt = prompt_selector.prompts[idx]
         if rotary_state['timer'] is not None:
             rotary_state['timer'].cancel()
-        rotary_state['timer'] = threading.Timer(
-            ROTARY_SETTLE_DELAY, switch_to_prompt, args=[new_prompt]
-        )
+
+        def fire():
+            if rotary_state['last_applied_pos'] == rotary_pos:
+                return  # dial already at this position; ignore bounce
+            rotary_state['last_applied_pos'] = rotary_pos
+            switch_to_prompt(prompt_selector.prompts[idx])
+
+        rotary_state['timer'] = threading.Timer(ROTARY_SETTLE_DELAY, fire)
         rotary_state['timer'].start()
 
     if gpio_handler:

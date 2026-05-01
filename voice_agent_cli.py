@@ -5,17 +5,22 @@
 #   python voice_agent_cli.py
 #
 #   With keyboard controls:
-#     python voice_agent_cli.py a
+#     python voice_agent_cli.py --enable_keyboard_control
 #
-#   With GPIO interrupt button on Raspberry Pi 5:
+#   With GPIO (interrupt button + rotary dial) on Raspberry Pi 5:
 #     python voice_agent_cli.py --platform rpi5
 #
-#   With GPIO interrupt button on Orange Pi 5 Pro:
+#   With GPIO (interrupt button + rotary dial) on Orange Pi 5 Pro:
 #     python voice_agent_cli.py --platform opi5
 #
-#   Keyboard controls (when enabled):
-#     ENTER - Interrupt agent output (stops current speech and returns to listening)
-#     SPACE - Toggle microphone mute/unmute
+#   Keyboard controls (when --enable_keyboard_control is set):
+#     ENTER          - Interrupt agent output (only while agent is speaking)
+#     SPACE          - Toggle microphone mute/unmute
+#     g / s / f      - Switch to prompt 1 / 2 / 3 (mirrors rotary dial positions)
+#
+#   GPIO controls:
+#     Interrupt button - Interrupt agent output (only while agent is speaking)
+#     Rotary dial      - Switch among the first 3 prompts in prompts.json
 #
 #   Different interaction handlers:
 #     python voice_agent_cli.py --interaction_handler colored           # Rich console (default)
@@ -25,14 +30,23 @@
 #
 # Exit: Say "goodbye" (voice command)
 
+import threading
 import time
 start_time = time.time()
 print("Loading Voice Agent...")
 
-import sys
 from voice_agent import VoiceAgent
 import voice_agent_utils
 from voice_agent_interaction_handlers import get_handler, LoggingHandlerWrapper, create_conversation_log_file
+from opi.gpio_utils import POSITION_KEYS
+
+# Rotary dial: 3 positions mapped to the first 3 prompts in prompts.json.
+ROTARY_POSITION_TO_PROMPT_INDEX = {
+    'pos1': 0,
+    'pos2': 1,
+    'pos3': 2,
+}
+ROTARY_SETTLE_DELAY = 0.3
 
 print(f">> -- All imports done in {time.time() - start_time:.2f} seconds -- <<")
 
@@ -51,7 +65,30 @@ def main():
         default_system_prompt=args.system_prompt,
         default_start_message=args.start_message
     )
-    initial_prompt = prompt_selector.get_random_prompt()
+
+    # Setup GPIO handler early so we can read the rotary dial for the initial prompt
+    gpio_handler = None
+    if args.platform:
+        from gpio_inputs import RaspberryPi5GPIOHandler, OrangePi5ProGPIOHandler
+        if args.platform == 'rpi5':
+            gpio_handler = RaspberryPi5GPIOHandler()
+        elif args.platform == 'opi5':
+            gpio_handler = OrangePi5ProGPIOHandler()
+        gpio_handler.setup(add_interrupt_button=True, add_rotary_dial=True)
+        print(f">> GPIO handler: {gpio_handler.__class__.__name__}")
+
+    # Pick initial prompt: from rotary dial if available, else random
+    initial_prompt = None
+    if gpio_handler:
+        rotary_pos = gpio_handler.get_current_position()
+        idx = ROTARY_POSITION_TO_PROMPT_INDEX.get(rotary_pos)
+        if idx is not None and idx < len(prompt_selector.prompts):
+            initial_prompt = prompt_selector.prompts[idx]
+            print(f">> Initial prompt from rotary dial position '{rotary_pos}': {initial_prompt.get('name', 'unnamed')}")
+        else:
+            print(f">> No valid rotary position detected (got {rotary_pos!r}), using random prompt")
+    if initial_prompt is None:
+        initial_prompt = prompt_selector.get_random_prompt()
 
     t1 = time.time()
     print(">> Initializing Voice Agent <<")
@@ -72,17 +109,6 @@ def main():
         prompt_name = initial_prompt.get('name', 'unnamed')
         log_file.write(f"[PROMPT] {prompt_name}\n")
         log_file.flush()
-
-    # Setup GPIO handler based on platform
-    gpio_handler = None
-    if args.platform:
-        from gpio_inputs import RaspberryPi5GPIOHandler, OrangePi5ProGPIOHandler
-        if args.platform == 'rpi5':
-            gpio_handler = RaspberryPi5GPIOHandler()
-        elif args.platform == 'opi5':
-            gpio_handler = OrangePi5ProGPIOHandler()
-        gpio_handler.setup(add_interrupt_button=True, add_rotary_dial=False)
-        print(f">> GPIO handler: {gpio_handler.__class__.__name__}")
 
     va.init_AudioToText(
         asr_model_name=args.asr_model_name,
@@ -156,23 +182,11 @@ def main():
             print(f"[Interrupt agent #{button_press_count['n']} done]")
 
     def on_button_press():
-        """Context-aware button press: interrupt agent OR force end user segment."""
+        """Button press: only interrupt agent speech (no-op if agent isn't speaking)."""
         if va.output_handler.is_speaking or va.output_handler.is_processing:
-            # Agent is active - interrupt it
             on_interrupt_agent()
-        else:
-            # User might be speaking - force end segment
-            if args.verbose:
-                print(f"\n[Force end segment] at {time.time():.2f}")
-            va.input_handler.force_end_segment()
 
-    def on_long_press():
-        """Long press: full reset with new random prompt."""
-        if args.verbose:
-            print(f"\n[Full reset] at {time.time():.2f}")
-        # Pick a new random prompt pair
-        new_prompt = va.prompt_selector.get_random_prompt()
-        # Log prompt name if logging enabled
+    def switch_to_prompt(new_prompt):
         if log_file:
             prompt_name = new_prompt.get('name', 'unnamed')
             log_file.write(f"\n[RESET] [PROMPT] {prompt_name}\n")
@@ -185,8 +199,26 @@ def main():
     # Setup GPIO interrupt button via gpio_handler
     if gpio_handler:
         gpio_handler.set_interrupt_callback(on_button_press)
-        gpio_handler.set_long_press_callback(on_long_press)
-        print(">> GPIO button enabled (short=interrupt/end-segment, long=reset)")
+        print(">> GPIO interrupt button enabled (interrupts agent speech only)")
+
+    # -- rotary switch -> prompt selection --
+    # Debounce so dial sweeps don't queue multiple prompt switches.
+    rotary_state = {'timer': None}
+    def switch_to_position(rotary_pos):
+        idx = ROTARY_POSITION_TO_PROMPT_INDEX.get(rotary_pos)
+        if idx is None or idx >= len(prompt_selector.prompts):
+            return
+        new_prompt = prompt_selector.prompts[idx]
+        if rotary_state['timer'] is not None:
+            rotary_state['timer'].cancel()
+        rotary_state['timer'] = threading.Timer(
+            ROTARY_SETTLE_DELAY, switch_to_prompt, args=[new_prompt]
+        )
+        rotary_state['timer'].start()
+
+    if gpio_handler:
+        gpio_handler.set_position_change_callback(switch_to_position)
+        print(f">> Rotary switch listener active (3 positions -> first 3 prompts)")
 
     # Setup keyboard controls via the interaction handler
     if args.enable_keyboard_control and hasattr(user_interaction_handler, 'setup_keyboard_controls'):
@@ -203,34 +235,27 @@ def main():
                 mute_state['is_muted'] = True
                 print("\r\033[K🔇 Microphone MUTED")
 
-        def on_reset():
-            print("\r\033[K🔄 Resetting conversation...")
-            # Pick a new random prompt pair
-            new_prompt = va.prompt_selector.get_random_prompt()
-            # Log prompt name if logging enabled
-            if log_file:
-                prompt_name = new_prompt.get('name', 'unnamed')
-                log_file.write(f"\n[RESET] [PROMPT] {prompt_name}\n")
-                log_file.flush()
-            va.full_reset_with_prompt(
-                system_prompt=new_prompt['system_prompt'],
-                start_message=new_prompt['start_message']
-            )
-
         key_callbacks = {
             'enter': on_button_press,
             'space': on_mute_toggle,
-            'r': on_reset,
         }
+        # Bind g/s/f (or whatever POSITION_KEYS defines) to switch prompts,
+        # mirroring the rotary dial.
+        for key, pos in POSITION_KEYS.items():
+            key_callbacks[key] = lambda p=pos: switch_to_position(p)
 
         user_interaction_handler.setup_keyboard_controls(key_callbacks)
 
-        print("Keyboard controls: ENTER=interrupt/end-segment | SPACE=mute/unmute | R=reset")
+        keys_str = "/".join(k.upper() for k in POSITION_KEYS)
+        print(f"Keyboard controls: ENTER=interrupt | SPACE=mute/unmute | {keys_str}=switch prompt")
 
     # Run the voice agent
     try:
         va.run()
     finally:
+        # Cancel any pending rotary debounce timer
+        if rotary_state.get('timer'):
+            rotary_state['timer'].cancel()
         # Clean up GPIO handler
         if gpio_handler:
             gpio_handler.cleanup()

@@ -139,19 +139,18 @@ The voice agent supports hardware controls via GPIO on single-board computers us
 
 #### Features
 
-- **Interrupt Button**: Context-aware button with multiple functions:
-  - **Short press while agent is speaking**: Interrupt the agent's speech and return to listening mode
-  - **Short press while user is speaking**: Force end of user segment (acts like VAD end-of-speech) and immediately send to agent
-  - **Long press (2+ seconds)**: Full reset - clears conversation history and restarts with the start message
-- **Rotary Dial**: 4-position switch for language selection (used by `voice_translate_cli.py`)
+- **Interrupt Button**: Press while the agent is speaking to stop the speech and return to listening mode. (Presses while the agent is silent are ignored.)
+- **Rotary Dial**: 3-position switch.
+  - In `voice_translate_cli.py`: selects the output language (positions 1/2/3 → German/Spanish/French).
+  - In `voice_agent_cli.py`: selects which prompt to use (positions 1/2/3 → first 3 prompts in `prompts.json`, with a full conversation reset on change).
 
 #### Usage
 
 ```bash
-# Voice agent with interrupt button only
-python voice_agent_cli.py --platform rpi5
+# Voice agent with interrupt button + rotary dial (rotary cycles among first 3 prompts)
+python voice_agent_cli.py --platform rpi5 --prompt_file prompts.json
 
-# Translation agent with interrupt button + rotary dial
+# Translation agent with interrupt button + rotary dial (rotary picks language)
 python voice_translate_cli.py --platform opi5
 
 # With verbose output to see button actions
@@ -168,10 +167,11 @@ python voice_agent_cli.py --enable_keyboard_control
 
 | Key | Action |
 | --- | ------ |
-| ENTER | Context-aware: interrupt agent OR force end user segment |
+| ENTER | Interrupt agent speech (only while agent is speaking) |
 | SPACE | Toggle microphone mute/unmute |
+| g / s / f | Switch to prompt 1 / 2 / 3 (mirrors rotary dial; agent CLI only) |
 
-Note: Long press (full reset) is only available via GPIO button, not keyboard.
+Note: keyboard `g/s/f` map to the same positions as the rotary dial (`pos1/pos2/pos3`). In the translator CLI those keys also pick German/Spanish/French.
 
 #### Pinout
 
@@ -184,9 +184,9 @@ See [Raspberry Pi 5 Pinout](https://vilros.com/pages/raspberry-pi-5-pinout) for 
 | Function | GPIO | Physical Pin |
 | -------- | ---- | ------------ |
 | Interrupt Button | 22 | 15 |
-| Rotary: German | 23 | 16 |
-| Rotary: Spanish | 24 | 18 |
-| Rotary: French | 27 | 13 |
+| Rotary: pos1 (German / prompt 1) | 23 | 16 |
+| Rotary: pos2 (Spanish / prompt 2) | 24 | 18 |
+| Rotary: pos3 (French / prompt 3) | 17 | 11 |
 
 Note: These pins are chosen to avoid conflicts with the [ReSpeaker 2-Mic HAT](https://pinout.xyz/pinout/respeaker_2_mics_phat).
 
@@ -197,9 +197,9 @@ See [Orange Pi 5 Pro](http://www.orangepi.org/html/hardWare/computerAndMicrocont
 | Function | GPIO |
 | -------- | ---- |
 | Interrupt Button | 14 |
-| Rotary: German | 13 |
-| Rotary: Spanish | 15 |
-| Rotary: French | 8 |
+| Rotary: pos1 (German / prompt 1) | 13 |
+| Rotary: pos2 (Spanish / prompt 2) | 15 |
+| Rotary: pos3 (French / prompt 3) | 8 |
 
 #### Installation
 

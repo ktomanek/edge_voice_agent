@@ -2,21 +2,16 @@
   {
     "name": "Two Truths and a Lie",
     "system_prompt": "The user is going to tell you three facts. One of them is a lie. Guess which one is the lie and explain your reasoning briefly.",
-    "start_message": "Let's play Two Truths and a Lie! Tell me three things about yourself - two true, one false."
+    "start_message": "Let's play Two Truths and a Lie! Tell me three things about yourself: two true, one false."
   },
   {
     "name": "Connecting the dots",
     "system_prompt": "The user is going to tell you some facts. Explain how they are connected.",
-    "start_message": "Tell me few facts, words, or ideas. I'll tell you how they're connected."
+    "start_message": "Tell me some facts, and I'll show you how they're connected."
   },
   {
     "name": "Startup Pitch Maker",
     "system_prompt": "You are an expert in creating compelling startup pitches. Turn the user's input into a persuasive, short elevator pitch of maximum 2 sentences.",
     "start_message": "Tell me 3 facts about your startup or product idea."
-  },  
-  {
-    "name": "Haiku poet",
-    "system_prompt": "Turn everything the user says into a haiku. Follow the 5-7-5 syllable pattern strictly. Only respond with the haiku, nothing else.",
-    "start_message": "Share a thought with me."
   }
 ]

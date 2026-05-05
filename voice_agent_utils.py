@@ -35,6 +35,7 @@ def get_cli_argument_parser():
     parser.add_argument("--end_of_utterance_duration", type=float, default=0.7, help="Silence seconds until end of turn of user identified")
     parser.add_argument("--enable_keyboard_control", action="store_true", default=False, help="Enable keyboard control (space to mute/unmute, ESC to exit)")
     parser.add_argument("--verbose", action="store_true", help="Verbose status info")
+    parser.add_argument("--show_ttfb", action="store_true", default=False, help="Measure & print per-turn TTFB (end-of-utterance to first audio spoken). Prints a summary on exit.")
     parser.add_argument("--interaction_handler", choices=['colored', 'minimal', 'whisplay', 'display_leds_interrupt'], default="colored", help="Interaction handler: 'colored' (default) for rich console output, 'minimal' for emoji status, 'whisplay' for Whisplay HAT, 'display_leds_interrupt' for Waveshare display + external LEDs + ReSpeaker button. Use --platform for GPIO interrupt button.")
     parser.add_argument("--audio-device-input", type=str, default=None,
                         help="Input audio device (mic): index (e.g. '3') or ALSA name (e.g. 'plughw:3,0')")

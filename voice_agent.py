@@ -61,11 +61,18 @@ class LLmToAudio:
                  split_on_punctuation=True,  # split at commas/colons for low-latency; False for translation mode
                  verbose=False,
                  printer=None,
-                 single_turn=False
+                 single_turn=False,
+                 show_ttfb=False,
                  ):
         """Initialize the streamer with Piper and LLM models."""
         self.verbose = verbose
         self.single_turn = single_turn
+        self.show_ttfb = show_ttfb
+        # TTFB = time from VAD-detected end-of-utterance to first audio played.
+        # Set per-turn by VoiceAgent.run() right after get_speech_input() returns.
+        self.last_eou_timestamp = None
+        self.first_audio_emitted_for_turn = False
+        self.ttfb_history = []
         
         # Init TTS
         self.max_words_to_speak_start = max_words_to_speak_start
@@ -177,6 +184,7 @@ class LLmToAudio:
         self.first_speech_fragment_finalized = False
         self.time_llm_gen_started = time.time()
         self.first_chunk_emitted = False
+        self.first_audio_emitted_for_turn = False
 
 
     def stop(self):
@@ -487,6 +495,13 @@ class LLmToAudio:
                 if self.interrupt_event.is_set():
                     return
                 try:
+                    if not self.first_audio_emitted_for_turn:
+                        self.first_audio_emitted_for_turn = True
+                        if self.last_eou_timestamp is not None:
+                            ttfb = time.time() - self.last_eou_timestamp
+                            self.ttfb_history.append(ttfb)
+                            if self.show_ttfb:
+                                print(f"\n>> [TTFB] {ttfb:.3f}s  (EOU -> first audio, turn #{len(self.ttfb_history)})")
                     self.audio_stream.write(audio_data)
                 except Exception as e:
                     if not self.interrupt_event.is_set():
@@ -594,6 +609,7 @@ class LLmToAudio:
         self.first_speech_fragment_finalized = False
         self.time_llm_gen_started = time.time()
         self.first_chunk_emitted = False
+        self.first_audio_emitted_for_turn = False
 
         # For single_turn mode, disable prompt caching to avoid stale context
         extra_params = {}
@@ -700,9 +716,13 @@ class AudioToText:
                  min_partial_duration=0.2,
                  max_segment_duration=15,
                  verbose=False,
-                printer=None):
+                printer=None,
+                show_performance=False):
 
         self.verbose = verbose
+        self.show_performance = show_performance
+        # List of dicts: {'asr_time': float, 'audio_len': float, 'rtfx': float}
+        self.asr_history = []
         self.language = language
         self.end_of_utterance_duration = end_of_utterance_duration
 
@@ -743,6 +763,9 @@ class AudioToText:
         self.interrupt_event = threading.Event()  # For aborting current input
         self.force_end_segment_event = threading.Event()  # For forcing end of user speech
         self._stream_lock = threading.Lock()  # Prevents stream start during interrupt
+        # Set when VAD detects end-of-utterance (or user force-ends a segment).
+        # Read by VoiceAgent.run() to feed TTFB measurement in the output handler.
+        self.last_eou_timestamp = None
         self.transcription_handler = captioning_utils.TranscriptionWorker(
             sampling_rate=captioning_utils.SAMPLING_RATE)
 
@@ -938,6 +961,7 @@ class AudioToText:
 
                 # Check for force end of segment (user pressed button while speaking)
                 if self.force_end_segment_event.is_set():
+                    self.last_eou_timestamp = time.time()
                     self.force_end_segment_event.clear()
                     # Stop mic immediately to prevent more audio capture
                     if self.input_audio_stream.active:
@@ -976,6 +1000,7 @@ class AudioToText:
                     else:
                         # define EOU when we haven't seen speech for a while
                         if self.transcription_handler.time_since_last_speech() > self.end_of_utterance_duration:
+                            self.last_eou_timestamp = time.time()
                             self._info(">>> seems user stopped speaking...")
 
                             # Check if interrupted (e.g., language change) - discard input
@@ -1092,6 +1117,9 @@ class VoiceAgent():
             self.debug_state("before_get_speech")
             user_input_transcribed = self.input_handler.get_speech_input()
             self.debug_state("after_get_speech")
+            # Forward EOU timestamp so the output handler can compute TTFB
+            # (EOU -> first audio played).
+            self.output_handler.last_eou_timestamp = self.input_handler.last_eou_timestamp
 
             if not user_input_transcribed:
                 self.debug_state("empty_input_continuing")

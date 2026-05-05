@@ -134,7 +134,8 @@ def main():
         split_on_punctuation=False,
         verbose=args.verbose,
         single_turn=False,  # Conversational agent keeps history
-        printer=agent_interaction_handler
+        printer=agent_interaction_handler,
+        show_ttfb=args.show_ttfb,
     )
     print(f">> Initialized LLmToAudioOutput in {time.time() - start_time:.2f} seconds -- <<")
 
@@ -260,7 +261,26 @@ def main():
     # Run the voice agent
     try:
         va.run()
+    except KeyboardInterrupt:
+        print("\n>> Interrupted by user (Ctrl-C)")
     finally:
+        # TTFB summary (EOU -> first audio played)
+        if args.show_ttfb:
+            history = getattr(va.output_handler, 'ttfb_history', [])
+            if history:
+                import statistics
+                mean = statistics.mean(history)
+                stdev = statistics.stdev(history) if len(history) > 1 else 0.0
+                print("\n========== TTFB summary ==========")
+                print(f"  turns measured : {len(history)}")
+                print(f"  mean           : {mean:.3f}s")
+                print(f"  stdev          : {stdev:.3f}s")
+                print(f"  min            : {min(history):.3f}s")
+                print(f"  max            : {max(history):.3f}s")
+                print(f"  values         : {[f'{x:.3f}' for x in history]}")
+                print("==================================")
+            else:
+                print("\n>> No TTFB samples collected.")
         # Cancel any pending rotary debounce timer
         if rotary_state.get('timer'):
             rotary_state['timer'].cancel()

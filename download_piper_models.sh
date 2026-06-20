@@ -1,5 +1,12 @@
 mkdir -p models/piper
 
+# LICENSE NOTE: Voices are downloaded directly from rhasspy/piper-voices and are
+# governed by THEIR licenses, not this project's (Apache 2.0). The Piper code is
+# MIT, but each voice has its own license tied to the dataset it was trained on
+# (e.g. the en_US lessac voice uses the CSTR Blizzard 2013 dataset). Check the
+# per-voice license before use -> https://github.com/rhasspy/piper/blob/master/VOICES.md
+# (the license is also listed in each voice's accompanying .onnx.json / MODEL_CARD)
+
 # ONNX models are here
 # https://github.com/rhasspy/piper/blob/master/VOICES.md
 
@@ -25,7 +32,6 @@ wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/carlfm/x_
 wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/carlfm/x_low/es_ES-carlfm-x_low.onnx.json -O models/piper/es_ES-carlfm-x_low.onnx.json
 
 # French
-models/piper/fr_FR-siwis-low.onnx
 wget https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/low/fr_FR-siwis-low.onnx -O models/piper/fr_FR-siwis-low.onnx
 wget https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/low/fr_FR-siwis-low.onnx.json -O models/piper/fr_FR-siwis-low.onnx.json
 

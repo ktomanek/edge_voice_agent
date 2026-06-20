@@ -1,5 +1,9 @@
 """
 Download Silero VAD ONNX model from GitHub and store it locally.
+
+LICENSE NOTE: The model is downloaded directly from its provider (snakers4/
+silero-vad) and is governed by THEIR license, not this project's (Apache 2.0).
+Silero VAD is released under the MIT license. Review before use.
 """
 import urllib.request
 import ssl

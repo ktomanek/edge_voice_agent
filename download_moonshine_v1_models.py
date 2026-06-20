@@ -1,4 +1,10 @@
-"""Download Moonshine V1 ONNX models from HF hub to allow offline usage."""
+"""Download Moonshine V1 ONNX models from HF hub to allow offline usage.
+
+LICENSE NOTE: Models are downloaded directly from their provider (UsefulSensors/
+moonshine on the HF hub) and are governed by THEIR license, not this project's
+(Apache 2.0). The Moonshine models are released under the MIT license. Review
+before use.
+"""
 from huggingface_hub import hf_hub_download
 import os
 import shutil

@@ -1,3 +1,7 @@
+# LICENSE NOTE: Models are downloaded directly from the kokoro-onnx project and
+# are governed by THEIR licenses, not this project's (Apache 2.0). The Kokoro
+# model is released under Apache 2.0. Review before use.
+
 # ONNX models
 # https://github.com/thewh1teagle/kokoro-onnx/releases
 

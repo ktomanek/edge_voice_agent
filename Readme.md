@@ -316,3 +316,14 @@ The variance in inference speed on the Raspberry Pi is quite remarkable by the 7
 Running offline with above configuration (Moonshine ASR tiny, Gemma3:1b, Piper voice).
 
 [video](https://github.com/user-attachments/assets/486d4d48-36ff-455a-bca0-d230fe26dd0b)
+
+## License
+
+This project's source code is licensed under the Apache License 2.0 — see [LICENSE](LICENSE).
+
+Note that the models this project downloads and uses are licensed separately by their respective authors. The Apache 2.0 license here covers only this repository's own code, not the third-party models or datasets. The download scripts fetch models directly from their original sources at your request — it is up to you to choose models whose licenses fit your use. A few defaults to be aware of:
+
+- **LiquidAI LFM2 / LFM2.5** — [LFM Open License v1.0](https://www.liquid.ai/lfm-license): free commercial use only for organizations with annual revenue under $10M.
+- **Google Gemma** — [Gemma Terms of Use](https://ai.google.dev/gemma/terms): a custom license (not OSS) with its own use policy and redistribution-notice requirements.
+- **Piper voices** — code is MIT, but each voice carries its own license tied to its training dataset (see [VOICES.md](https://github.com/rhasspy/piper/blob/master/VOICES.md)).
+- **Moonshine** (MIT), **Silero VAD** (MIT), and **Kokoro** (Apache 2.0) are permissively licensed.

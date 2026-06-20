@@ -1,4 +1,10 @@
-"""Download Moonshine ONNX models using moonshine_voice library."""
+"""Download Moonshine ONNX models using moonshine_voice library.
+
+LICENSE NOTE: Models are downloaded directly from their provider via the
+moonshine_voice library and are governed by THEIR license, not this project's
+(Apache 2.0). The Moonshine models are released under the MIT license. Review
+before use.
+"""
 
 import os
 import shutil
